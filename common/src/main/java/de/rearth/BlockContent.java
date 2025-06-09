@@ -12,6 +12,6 @@ public class BlockContent {
     
     public static final DeferredRegister<Block> BLOCKS = DeferredRegister.create(Belts.MOD_ID, RegistryKeys.BLOCK);
     
-    public static final RegistrySupplier<Block> CHUTE_BLOCK = BLOCKS.register(Belts.id("chute"), () -> new ChuteBlock(AbstractBlock.Settings.copy(Blocks.IRON_BLOCK)));
+    public static final RegistrySupplier<Block> CHUTE_BLOCK = BLOCKS.register(Belts.id("chute"), () -> new ChuteBlock(AbstractBlock.Settings.copy(Blocks.IRON_BLOCK).nonOpaque()));
     
 }

@@ -53,7 +53,7 @@ public class Spline {
         // P_minus_1 = P_1 - 2 * startTangent
         // P_1 is the point after startPoint (catmullRomCPs[2], or endPoint if no mids)
         Vec3d pointAfterStart = (numMidPoints > 0) ? catmullRomCPs[2] : catmullRomCPs[numActualPoints]; // This is P1 in CR terms
-        catmullRomCPs[0] = pointAfterStart.subtract(startTangent.multiply(45.0));
+        catmullRomCPs[0] = pointAfterStart.subtract(startTangent.multiply(25));
         
         
         // Define P_N_plus_1 (phantom point after end to control end tangent)
@@ -65,7 +65,7 @@ public class Spline {
         // P_N_plus_1 = P_N-1 + 2 * endTangent
         // P_N-1 is the point before endPoint (catmullRomCPs[numActualPoints-1], or startPoint if no mids)
         Vec3d pointBeforeEnd = (numMidPoints > 0) ? catmullRomCPs[numActualPoints - 1] : catmullRomCPs[1]; // This is P_N-1 in CR terms
-        catmullRomCPs[numActualPoints + 1] = pointBeforeEnd.add(endTangent.multiply(45.0));
+        catmullRomCPs[numActualPoints + 1] = pointBeforeEnd.add(endTangent.multiply(25));
         
         
         // 5. Determine which segment 't_global' falls into and the local 't' for that segment

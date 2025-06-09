@@ -2,6 +2,7 @@ package de.rearth.blocks;
 
 import com.mojang.serialization.MapCodec;
 import net.minecraft.block.BlockEntityProvider;
+import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
@@ -25,6 +26,11 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     @Override
     public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
         return new ChuteBlockEntity(pos, state);
+    }
+    
+    @Override
+    protected BlockRenderType getRenderType(BlockState state) {
+        return BlockRenderType.INVISIBLE;
     }
     
     @Override
