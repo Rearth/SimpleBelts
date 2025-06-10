@@ -86,9 +86,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             progress = Math.clamp(progress, 0, 0.9999f);
             var nextProgress = (i + 1) / (float) segmentCount;
             nextProgress = Math.clamp(nextProgress, 0, 0.9999f);
-            var worldPoint = Spline.getPointOnCatmullRomSpline(progress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual);
+            var worldPoint = Spline.getPointOnCatmullRomSpline(progress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, 1f, 2f, conveyorMidPointsVisual);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
-            var worldPointNext = Spline.getPointOnCatmullRomSpline(nextProgress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual);
+            var worldPointNext = Spline.getPointOnCatmullRomSpline(nextProgress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, 1f, 2f, conveyorMidPointsVisual);
             var localPointNext = worldPointNext.subtract(entity.getPos().toCenterPos());
             
             var direction = localPointNext.subtract(localPoint);

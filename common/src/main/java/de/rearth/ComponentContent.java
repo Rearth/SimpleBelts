@@ -3,8 +3,11 @@ package de.rearth;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import net.minecraft.component.ComponentType;
+import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.math.BlockPos;
+
+import java.util.List;
 
 public class ComponentContent {
     
@@ -12,5 +15,8 @@ public class ComponentContent {
     
     public static final RegistrySupplier<ComponentType<BlockPos>> BELT = COMPONENTS.register(Belts.id("belt_target"),
       () -> ComponentType.<BlockPos>builder().codec(BlockPos.CODEC).packetCodec(BlockPos.PACKET_CODEC).build());
+    
+    public static final RegistrySupplier<ComponentType<List<BlockPos>>> MIDPOINTS = COMPONENTS.register(Belts.id("belt_midpoints"),
+      () -> ComponentType.<List<BlockPos>>builder().codec(BlockPos.CODEC.listOf()).packetCodec(BlockPos.PACKET_CODEC.collect(PacketCodecs.toList())).build());
     
 }
