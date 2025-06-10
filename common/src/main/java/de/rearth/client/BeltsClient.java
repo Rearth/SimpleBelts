@@ -9,8 +9,12 @@ public final class BeltsClient {
     public static void init() {
         System.out.println("Hello from belt client!");
         
-        BlockEntityRendererFactories.register(BlockEntitiesContent.CHUTE_BLOCK.get(), ctx -> new ChuteBeltRenderer());
+    }
+    
+    public static void registerRenderers() {
+        System.out.println("Registering renderers");
         
+        BlockEntityRendererFactories.register(BlockEntitiesContent.CHUTE_BLOCK.get(), ctx -> new ChuteBeltRenderer());
     }
     
 }
