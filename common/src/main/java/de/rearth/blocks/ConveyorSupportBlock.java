@@ -1,23 +1,20 @@
 package de.rearth.blocks;
 
 import com.mojang.serialization.MapCodec;
-import net.minecraft.block.*;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.BlockEntityTicker;
-import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.state.StateManager;
 import net.minecraft.state.property.Properties;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
-public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProvider {
+public class ConveyorSupportBlock extends HorizontalFacingBlock {
     
-    public ChuteBlock(Settings settings) {
+    public ConveyorSupportBlock(Settings settings) {
         super(settings);
         setDefaultState(getDefaultState().with(Properties.HORIZONTAL_FACING, Direction.NORTH));
     }
@@ -36,15 +33,5 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     @Override
     protected MapCodec<? extends HorizontalFacingBlock> getCodec() {
         return null;
-    }
-    
-    @Override
-    public @Nullable BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
-        return new ChuteBlockEntity(pos, state);
-    }
-    
-    @Override
-    public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        return BlockEntityProvider.super.getTicker(world, state, type); // todo
     }
 }

@@ -1,7 +1,9 @@
 package de.rearth.client.renderers;
 
+import de.rearth.BlockEntitiesContent;
 import de.rearth.blocks.ChuteBlockEntity;
 import de.rearth.util.Spline;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -12,39 +14,51 @@ import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3i;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
+    // yeah this isnt the way to store per-instance data, this needs to be moved to the entity maybe? With env annotations?
+    private static final HashMap<Long, Vertex[]> cachedModel = new HashMap<>();
+    private static final HashMap<Long, Integer> lightmapCache = new HashMap<>();
+    
     public record Vertex(float x, float y, float z, float u, float v, BlockPos worldPos) {
-        public static Vertex create(Matrix4f entry, Vec3d pos, float u, float v, BlockPos worldPos) {
-            var vector3f = entry.transformPosition((float) pos.x, (float) pos.y, (float) pos.z, new Vector3f());
-            return new Vertex(vector3f.x, vector3f.y, vector3f.z, u, v, worldPos);
+        public static Vertex create(Vec3d pos, float u, float v, BlockPos worldPos) {
+            return new Vertex((float) pos.x, (float) pos.y, (float) pos.z, u, v, worldPos);
         }
     }
     
-    private static Vertex[] createSplineModel(ChuteBlockEntity entity, Matrix4f modelMatrix) {
+    private Vertex[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
+        
+        if (true) {
+            return createSplineModel(entity, target);
+        }
+        
+        return cachedModel.computeIfAbsent(entity.getPos().asLong(), key -> createSplineModel(entity, target));
+    }
+    
+    private static Vertex[] createSplineModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
         
         var sprite = MinecraftClient.getInstance().getSpriteAtlas(PlayerScreenHandler.BLOCK_ATLAS_TEXTURE)
                        .apply(Identifier.of("minecraft", "block/stone"));
         var result = new ArrayList<Vertex>();
         
-        var conveyorOffsets = List.of(new Vec3i(4, 0, 6), new Vec3i(-4, 0, 14), new Vec3i(2, 0, 20));
-        
         // all positions here are in world space
-        var conveyorMidPoints = conveyorOffsets.stream().map(elem -> entity.getPos().add(elem)).toList();
         var conveyorStartPoint = entity.getPos();
-        var conveyorStartDir = new Vec3d(0, 0, 1);
-        var conveyorEndDir = new Vec3d(0, 0, 1);
-        var conveyorEndPoint = entity.getPos().add(0, 0, 32);
-        var conveyorMidPointsWorld = conveyorMidPoints.stream().map(BlockPos::toCenterPos).toArray(Vec3d[]::new);
+        var conveyorMidPoints = new ArrayList<BlockPos>();
+        var conveyorEndPoint = entity.getTarget();
+        var conveyorStartDir = Vec3d.of(entity.getOwnFacing().getVector());
+        var conveyorEndDir = Vec3d.of(target.getOwnFacing().getOpposite().getVector());
         
+        var conveyorMidPointsVisual = conveyorMidPoints.stream().map(BlockPos::toCenterPos).toArray(Vec3d[]::new);
+        var conveyorStartPointVisual = conveyorStartPoint.toCenterPos().add(conveyorStartDir.multiply(-0.5f));
+        var conveyorEndPointVisual = conveyorEndPoint.toCenterPos().add(conveyorEndDir.multiply(0.5f));
+        
+        // calculate segment count / total size
         var allPoints = new ArrayList<BlockPos>();
         allPoints.add(conveyorStartPoint);
         allPoints.addAll(conveyorMidPoints);
@@ -56,24 +70,31 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         var segmentSize = 0.95f;
         var segmentCount = (int) Math.ceil(totalDist / segmentSize);
-        var lineWidth = 0.4f;
+        var lineWidth = 0.35f;
         
         var beginRight = conveyorStartDir.crossProduct(new Vec3d(0, 1, 0)).normalize();
         
-        var lastRight = new Vec3d(0.5f, 0.5f, 0.5f).add(beginRight.multiply(lineWidth));
-        var lastLeft = new Vec3d(0.5f, 0.5f, 0.5f).add(beginRight.multiply(-lineWidth));
+        // local space
+        var localStart = new Vec3d(0.5f, 0.5, 0.5f).add(conveyorStartDir.multiply(-0.5f));
+        var lastRight = localStart.add(beginRight.multiply(lineWidth));
+        var lastLeft = localStart.add(beginRight.multiply(-lineWidth));
         
-        for (int i = 0; i < segmentCount - 1; i++) {
+        for (int i = 0; i < segmentCount; i++) {
             
+            var last = i == segmentCount - 1;
             var progress = i / (float) segmentCount;
+            progress = Math.clamp(progress, 0, 0.9999f);
             var nextProgress = (i + 1) / (float) segmentCount;
-            var worldPoint = Spline.getPointOnCatmullRomSpline(progress, conveyorStartPoint.toCenterPos(), conveyorStartDir, conveyorEndPoint.toCenterPos(), conveyorEndDir, conveyorMidPointsWorld);
+            nextProgress = Math.clamp(nextProgress, 0, 0.9999f);
+            var worldPoint = Spline.getPointOnCatmullRomSpline(progress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
-            var worldPointNext = Spline.getPointOnCatmullRomSpline(nextProgress, conveyorStartPoint.toCenterPos(), conveyorStartDir, conveyorEndPoint.toCenterPos(), conveyorEndDir, conveyorMidPointsWorld);
+            var worldPointNext = Spline.getPointOnCatmullRomSpline(nextProgress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual);
             var localPointNext = worldPointNext.subtract(entity.getPos().toCenterPos());
             
             var direction = localPointNext.subtract(localPoint);
             var cross = direction.crossProduct(new Vec3d(0, 1, 0)).normalize();
+            if (last)
+                cross = conveyorEndDir.crossProduct(new Vec3d(0, 1, 0)).normalize();
             
             var nextRight = localPointNext.add(cross.multiply(lineWidth)).add(0.5f, 0.5f, 0.5f);
             var nextLeft = localPointNext.add(cross.multiply(-lineWidth)).add(0.5f, 0.5f, 0.5f);
@@ -87,10 +108,10 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var vMin = sprite.getFrameV(0);
             var vMax = sprite.getFrameV(1);
             
-            var botRight = Vertex.create(modelMatrix, lastRight, uMax, vMax, worldPos);
-            var topRight = Vertex.create(modelMatrix, nextRight, uMin, vMax, worldPos);
-            var topLeft = Vertex.create(modelMatrix, nextLeft, uMin, vMin, worldPos);
-            var botLeft = Vertex.create(modelMatrix, lastLeft, uMax, vMin, worldPos);
+            var botRight = Vertex.create(lastRight, uMax, vMax, worldPos);
+            var topRight = Vertex.create(nextRight, uMin, vMax, worldPos);
+            var topLeft = Vertex.create(nextLeft, uMin, vMin, worldPos);
+            var botLeft = Vertex.create(lastLeft, uMax, vMin, worldPos);
             
             result.add(botRight);
             result.add(topRight);
@@ -107,19 +128,37 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     @Override
     public void render(ChuteBlockEntity entity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay) {
         
+        if (entity == null || entity.getWorld() == null) return;
+        
+        if (entity.getTarget() == null || entity.getTarget().getManhattanDistance(entity.getPos()) < 2) return;
+        
+        var targetCandidate = entity.getWorld().getBlockEntity(entity.getTarget(), BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (targetCandidate.isEmpty()) return;
+        
         matrices.push();
+        matrices.translate(0, 0.05, 0);
         
         var entry = matrices.peek();
         var modelMatrix = entry.getPositionMatrix();
         var consumer = vertexConsumers.getBuffer(RenderLayer.getSolid());
         
-        var vertices = createSplineModel(entity, modelMatrix);
+        var lightRefreshInterval = 60;
+        
+        var vertices = getOrComputeModel(entity, targetCandidate.get());
+        if (vertices == null) {
+            matrices.pop();
+            return;
+        }
         
         for (var vertex : vertices) {
             
-            var worldLight = WorldRenderer.getLightmapCoordinates(entity.getWorld(), vertex.worldPos);
+            final var worldPos = vertex.worldPos;
+            var worldLight = lightmapCache.computeIfAbsent(vertex.worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
+            if (entity.getWorld().getTime() % lightRefreshInterval == 0) {
+                lightmapCache.put(vertex.worldPos.asLong(), WorldRenderer.getLightmapCoordinates(entity.getWorld(), vertex.worldPos));
+            }
             
-            consumer.vertex(vertex.x, vertex.y, vertex.z)
+            consumer.vertex(modelMatrix, vertex.x, vertex.y, vertex.z)
               .color(Colors.WHITE)
               .texture(vertex.u, vertex.v)
               .normal(entry, 0, 1, 0)
@@ -139,5 +178,12 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     @Override
     public int getRenderDistance() {
         return 128;
+    }
+    
+    // overrides NF mixin
+    public Box getRenderBoundingBox(BlockEntity blockEntity) {
+        return new Box(
+          Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY
+        );
     }
 }

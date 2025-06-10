@@ -1,10 +1,10 @@
 package de.rearth.client.renderers;
 
+import de.rearth.BlockEntitiesContent;
 import de.rearth.ComponentContent;
 import de.rearth.items.BeltItem;
 import de.rearth.util.Spline;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -15,6 +15,7 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,7 @@ public class BeltOutlineRenderer {
         
         var client = MinecraftClient.getInstance();
         var player = client.player;
-        if (player == null) return;
+        if (player == null || client.crosshairTarget == null || client.crosshairTarget.getType() != HitResult.Type.BLOCK) return;
         
         var itemStack = player.getMainHandStack();
         
@@ -35,15 +36,17 @@ public class BeltOutlineRenderer {
         if (startBlockPos == null || startBlockPos.equals(BlockPos.ORIGIN)) return;
         
         var startPos = startBlockPos.toCenterPos();
-        var endPos = getPlayerTargetPos(player, 3);
+        var endBlockPos = ((BlockHitResult) client.crosshairTarget).getBlockPos();
+        var endPos = endBlockPos.toCenterPos();
         
-        if (client.crosshairTarget != null && client.crosshairTarget.getType() == HitResult.Type.BLOCK) {
-            var innerBlockPos = ((BlockHitResult) client.crosshairTarget).getBlockPos();
-            //  var surfacePos = innerBlockPos.add(((BlockHitResult) client.crosshairTarget).getSide().getVector());
-            endPos = innerBlockPos.toCenterPos();
-        }
+        var startCandidate = world.getBlockEntity(startBlockPos, BlockEntitiesContent.CHUTE_BLOCK.get());
+        var endCandidate = world.getBlockEntity(endBlockPos, BlockEntitiesContent.CHUTE_BLOCK.get());
         
-        var linePoints = getPositionsAlongLine(startPos, endPos);
+        if (startCandidate.isEmpty() || endCandidate.isEmpty()) return;
+        var startDir = startCandidate.get().getOwnFacing().getVector();
+        var endDir = endCandidate.get().getOwnFacing().getOpposite().getVector();
+        
+        var linePoints = getPositionsAlongLine(startPos, endPos, startDir, endDir);
         
         matrixStack.push();
         var cameraPos = camera.getPos();
@@ -59,27 +62,20 @@ public class BeltOutlineRenderer {
         
     }
     
-    private static List<Vec3d> getPositionsAlongLine(Vec3d from, Vec3d to) {
+    private static List<Vec3d> getPositionsAlongLine(Vec3d from, Vec3d to, Vec3i startDir, Vec3i endDir) {
         var stepSize = 0.2f;
         
         var result = new ArrayList<Vec3d>();
-        var direction = to.subtract(from).normalize();
         
         var dist = from.distanceTo(to);
         for (var i = 0f; i < dist; i += stepSize) {
             var progress = i / dist;
-            var center = Spline.getPointOnCatmullRomSpline((float) progress, from, new Vec3d(1, 0, 0), to, new Vec3d(0, 0, -1));
+            var center = Spline.getPointOnCatmullRomSpline((float) progress, from, Vec3d.of(startDir), to, Vec3d.of(endDir));
             result.add(center);
         }
         
         return result;
         
-    }
-    
-    public static Vec3d getPlayerTargetPos(ClientPlayerEntity player, float distance) {
-        var startPos = player.getEyePos();
-        var lookVec = player.getRotationVec(0F);
-        return startPos.add(lookVec.multiply(distance));
     }
     
 }

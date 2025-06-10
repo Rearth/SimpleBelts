@@ -9,6 +9,8 @@ public final class Belts {
         System.out.println("Hello world from common!");
         // Write common init code here.
         
+        NetworkContent.init();
+        
         BlockContent.BLOCKS.register();
         ItemContent.ITEMS.register();
         BlockEntitiesContent.TYPES.register();

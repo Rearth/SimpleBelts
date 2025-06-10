@@ -20,16 +20,27 @@ public class BeltItem extends Item {
     @Override
     public ActionResult useOnBlock(ItemUsageContext context) {
         
+        if (context.getWorld().isClient) return ActionResult.SUCCESS;
+        
         var targetBlockPos = context.getBlockPos();
         
         var chuteCandidate = context.getWorld().getBlockEntity(targetBlockPos, BlockEntitiesContent.CHUTE_BLOCK.get());
         if (chuteCandidate.isPresent()) {
             var chuteEntity = chuteCandidate.get();
-            System.out.println(chuteEntity.getPos());
-            context.getStack().set(ComponentContent.BELT.get(), targetBlockPos);
+            
+            if (context.getStack().contains(ComponentContent.BELT.get())) {
+                context.getPlayer().sendMessage(Text.literal("Created belt!"));
+                var storedPos = context.getStack().get(ComponentContent.BELT.get());
+                chuteEntity.setTargetFromBelt(storedPos);
+                context.getStack().remove(ComponentContent.BELT.get());
+            } else {
+                context.getPlayer().sendMessage(Text.literal("Stored target position!"));
+                context.getStack().set(ComponentContent.BELT.get(), targetBlockPos);
+            }
+            
         }
         
-        return super.useOnBlock(context);
+        return ActionResult.SUCCESS;
     }
     
     @Override
