@@ -2,7 +2,7 @@ package de.rearth.client.renderers;
 
 import de.rearth.BlockEntitiesContent;
 import de.rearth.blocks.ChuteBlockEntity;
-import de.rearth.util.Spline;
+import de.rearth.util.SplineUtil;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
@@ -13,8 +13,10 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
@@ -49,26 +51,25 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         // all positions here are in world space
         var conveyorStartPoint = entity.getPos();
-        var conveyorMidPoints = new ArrayList<BlockPos>();
         var conveyorEndPoint = entity.getTarget();
         var conveyorStartDir = Vec3d.of(entity.getOwnFacing().getVector());
         var conveyorEndDir = Vec3d.of(target.getOwnFacing().getOpposite().getVector());
         
-        var conveyorMidPointsVisual = conveyorMidPoints.stream().map(BlockPos::toCenterPos).toArray(Vec3d[]::new);
+        var conveyorMidPointsVisual = entity.getMidPointsWithTangents();
         var conveyorStartPointVisual = conveyorStartPoint.toCenterPos().add(conveyorStartDir.multiply(-0.5f));
         var conveyorEndPointVisual = conveyorEndPoint.toCenterPos().add(conveyorEndDir.multiply(0.5f));
         
         // calculate segment count / total size
         var allPoints = new ArrayList<BlockPos>();
         allPoints.add(conveyorStartPoint);
-        allPoints.addAll(conveyorMidPoints);
+        allPoints.addAll(entity.getMidPoints());
         allPoints.add(conveyorEndPoint);
-        var totalDist = 0f;
-        for (int i = 0; i < allPoints.size() - 1; i++) {
-            totalDist += (float) allPoints.get(i).getManhattanDistance(allPoints.get(i + 1));
-        }
         
-        var segmentSize = 0.95f;
+        var transformedMidPoints = conveyorMidPointsVisual.stream().map(elem -> new Pair<>(elem.getLeft().toCenterPos(), Vec3d.of(elem.getRight().getVector()))).toList();
+        var segmentPoints = SplineUtil.getPointPairs(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, transformedMidPoints);
+        var totalDist = SplineUtil.getTotalLength(segmentPoints);
+        
+        var segmentSize = 0.7f;
         var segmentCount = (int) Math.ceil(totalDist / segmentSize);
         var lineWidth = 0.35f;
         
@@ -83,12 +84,10 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             
             var last = i == segmentCount - 1;
             var progress = i / (float) segmentCount;
-            progress = Math.clamp(progress, 0, 0.9999f);
             var nextProgress = (i + 1) / (float) segmentCount;
-            nextProgress = Math.clamp(nextProgress, 0, 0.9999f);
-            var worldPoint = Spline.getPointOnCatmullRomSpline(progress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, 1f, 2f, conveyorMidPointsVisual);
+            var worldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, progress);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
-            var worldPointNext = Spline.getPointOnCatmullRomSpline(nextProgress, conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, 1f, 2f, conveyorMidPointsVisual);
+            var worldPointNext = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, nextProgress);
             var localPointNext = worldPointNext.subtract(entity.getPos().toCenterPos());
             
             var direction = localPointNext.subtract(localPoint);
@@ -103,15 +102,19 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             
             // draw a quad from lastLeft -> nextLeft -> nextRight -> lastRight
             
+            var lengthRight = nextRight.distanceTo(lastRight);
+            var lengthLeft = nextLeft.distanceTo(lastLeft);
+            
             var uMin = sprite.getFrameU(0);
-            var uMax = sprite.getFrameU(1);
+            var uMaxRight = sprite.getFrameU((float) lengthRight);
+            var uMaxLeft = sprite.getFrameU((float) lengthLeft);
             var vMin = sprite.getFrameV(0);
             var vMax = sprite.getFrameV(1);
             
-            var botRight = Vertex.create(lastRight, uMax, vMax, worldPos);
+            var botRight = Vertex.create(lastRight, uMaxRight, vMax, worldPos);
             var topRight = Vertex.create(nextRight, uMin, vMax, worldPos);
             var topLeft = Vertex.create(nextLeft, uMin, vMin, worldPos);
-            var botLeft = Vertex.create(lastLeft, uMax, vMin, worldPos);
+            var botLeft = Vertex.create(lastLeft, uMaxLeft, vMin, worldPos);
             
             result.add(botRight);
             result.add(topRight);
