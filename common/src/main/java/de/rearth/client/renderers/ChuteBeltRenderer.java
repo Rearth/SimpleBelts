@@ -43,9 +43,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     
     private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
         
-//        if (true) {
-//            return createSplineModel(entity, target);
-//        }
+        if (true) {
+            return createSplineModel(entity, target);
+        }
         
         return cachedModel.computeIfAbsent(entity.getPos().asLong(), key -> createSplineModel(entity, target));
     }
@@ -142,7 +142,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     
     private static void addSegmentVertices(Vec3d nextRight, Vec3d lastRight, Vec3d nextLeft, Vec3d lastLeft, Sprite sprite, BlockPos worldPos, ArrayList<Quad> result, float vStart, float vEnd) {
 
+        var skirtHeight = 0.15f;
         
+        // top quad
         var uMin = sprite.getFrameU(0);
         var uMax = sprite.getFrameU(1);
         var vMin = sprite.getFrameV(vStart);
@@ -154,6 +156,48 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var botLeft = Vertex.create(lastLeft, uMax, vMin);
         
         var quad = new Quad(topRight, topLeft, botLeft, botRight, worldPos);
+        result.add(quad);
+        
+        // right skirt
+        uMin = sprite.getFrameU(0);
+        uMax = sprite.getFrameU(2/16f);
+        vMin = sprite.getFrameV(0);
+        vMax = sprite.getFrameV(1);
+        
+        topRight = Vertex.create(nextRight.add(0, -skirtHeight, 0), uMax, vMax);
+        topLeft = Vertex.create(nextRight, uMin, vMax);
+        botLeft = Vertex.create(lastRight, uMin, vMin);
+        botRight = Vertex.create(lastRight.add(0, -skirtHeight, 0), uMax, vMin);
+        
+        quad = new Quad(topRight, topLeft, botLeft, botRight, worldPos);
+        result.add(quad);
+        
+        // left skirt
+        uMin = sprite.getFrameU(0);
+        uMax = sprite.getFrameU(2/16f);
+        vMin = sprite.getFrameV(0);
+        vMax = sprite.getFrameV(1);
+        
+        topRight = Vertex.create(nextLeft.add(0, -skirtHeight, 0), uMax, vMax);
+        topLeft = Vertex.create(nextLeft, uMin, vMax);
+        botLeft = Vertex.create(lastLeft, uMin, vMin);
+        botRight = Vertex.create(lastLeft.add(0, -skirtHeight, 0), uMax, vMin);
+        
+        quad = new Quad(botRight, botLeft, topLeft, topRight, worldPos);
+        result.add(quad);
+        
+        // bot quad
+        uMin = sprite.getFrameU(0);
+        uMax = sprite.getFrameU(1);
+        vMin = sprite.getFrameV(vStart);
+        vMax = sprite.getFrameV(vEnd);
+        
+        botRight = Vertex.create(lastRight.add(0, -skirtHeight, 0), uMin, vMin);
+        topRight = Vertex.create(nextRight.add(0, -skirtHeight, 0), uMin, vMax);
+        topLeft = Vertex.create(nextLeft.add(0, -skirtHeight, 0), uMax, vMax);
+        botLeft = Vertex.create(lastLeft.add(0, -skirtHeight, 0), uMax, vMin);
+        
+        quad = new Quad(botRight, botLeft, topLeft, topRight, worldPos);
         result.add(quad);
     }
     
@@ -230,8 +274,6 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         matrices.pop();
         
         // render items
-        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta);
-        if (renderedItems.isEmpty()) return;
         
         // all positions here are in world space
         var conveyorStartPoint = entity.getPos();
@@ -242,6 +284,13 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var conveyorMidPointsVisual = entity.getMidPointsWithTangents();
         var conveyorStartPointVisual = conveyorStartPoint.toCenterPos().add(conveyorStartDir.multiply(-0.5f));
         var conveyorEndPointVisual = conveyorEndPoint.toCenterPos().add(conveyorEndDir.multiply(0.5f));
+        
+        var transformedMidPoints = conveyorMidPointsVisual.stream().map(elem -> new Pair<>(elem.getLeft().toCenterPos(), Vec3d.of(elem.getRight().getVector()))).toList();
+        var segmentPoints = SplineUtil.getPointPairs(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, transformedMidPoints);
+        var totalDist = SplineUtil.getTotalLength(segmentPoints);
+        
+        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta, (float) (totalDist * 22f));
+        if (renderedItems.isEmpty()) return;
         
         for (var itemData : renderedItems.entrySet()) {
             var renderedStack = itemData.getValue();
@@ -258,7 +307,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             matrices.push();
             matrices.translate(localPoint.x, localPoint.y, localPoint.z);
             matrices.translate(0.5f, 0.8f, 0.5f);
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((float) Math.toDegrees(-dot)));
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((float) Math.toDegrees(dot)));
             matrices.scale(0.6f, 0.6f, 0.6f);
             
             MinecraftClient.getInstance().getItemRenderer().renderItem(
@@ -277,16 +326,16 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
     }
     
-    private Map<Float, ItemStack> getRenderedStacks(float time) {
+    private Map<Float, ItemStack> getRenderedStacks(float time, float travelDuration) {
         
 //        if (true) {
 //            return new HashMap<>();
 //        }
         
-        time  = time % 100;
+        time  = time % travelDuration;
         
-        var progress = time / 100f;
-        var progress2 = time / 100f + 0.6f;
+        var progress = time / travelDuration;
+        var progress2 = time / travelDuration + 0.6f;
         progress2 = progress2 % 1;
         
         var res = new HashMap<Float,ItemStack>();
