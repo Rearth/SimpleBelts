@@ -10,6 +10,7 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -29,16 +30,18 @@ import java.util.Map;
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
     // yeah this isnt the way to store per-instance data, this needs to be moved to the entity maybe? With env annotations?
-    private static final HashMap<Long, Vertex[]> cachedModel = new HashMap<>();
+    private static final HashMap<Long, Quad[]> cachedModel = new HashMap<>();
     private static final HashMap<Long, Integer> lightmapCache = new HashMap<>();
     
-    public record Vertex(float x, float y, float z, float u, float v, BlockPos worldPos) {
-        public static Vertex create(Vec3d pos, float u, float v, BlockPos worldPos) {
-            return new Vertex((float) pos.x, (float) pos.y, (float) pos.z, u, v, worldPos);
+    public record Vertex(float x, float y, float z, float u, float v) {
+        public static Vertex create(Vec3d pos, float u, float v) {
+            return new Vertex((float) pos.x, (float) pos.y, (float) pos.z, u, v);
         }
     }
     
-    private Vertex[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
+    public record Quad(Vertex a, Vertex b, Vertex c, Vertex d, BlockPos worldPos) {}
+    
+    private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
         
 //        if (true) {
 //            return createSplineModel(entity, target);
@@ -47,11 +50,11 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         return cachedModel.computeIfAbsent(entity.getPos().asLong(), key -> createSplineModel(entity, target));
     }
     
-    private static Vertex[] createSplineModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
+    private static Quad[] createSplineModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
         
         var sprite = MinecraftClient.getInstance().getSpriteAtlas(PlayerScreenHandler.BLOCK_ATLAS_TEXTURE)
                        .apply(Identifier.of("belts", "block/conveyorbelt"));
-        var result = new ArrayList<Vertex>();
+        var result = new ArrayList<Quad>();
         
         // all positions here are in world space
         var conveyorStartPoint = entity.getPos();
@@ -68,7 +71,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var totalDist = SplineUtil.getTotalLength(segmentPoints);
         
         // todo move forward in different increments, and adjust segmentSize dynamically based on distance between points?
-        var segmentSize = 0.5f;
+        var segmentSize = 0.75f;
         var segmentCount = (int) Math.ceil(totalDist / segmentSize);
         var lineWidth = 0.35f;
         
@@ -89,6 +92,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var worldPointNext = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, nextProgress);
             var localPointNext = worldPointNext.subtract(entity.getPos().toCenterPos());
             
+            var worldPos = BlockPos.ofFloored(worldPoint);
+            
             var direction = localPointNext.subtract(localPoint);
             var cross = direction.crossProduct(new Vec3d(0, 1, 0)).normalize();
             if (last)
@@ -97,36 +102,59 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var nextRight = localPointNext.add(cross.multiply(lineWidth)).add(0.5f, 0.5f, 0.5f);
             var nextLeft = localPointNext.add(cross.multiply(-lineWidth)).add(0.5f, 0.5f, 0.5f);
             
-            var worldPos = BlockPos.ofFloored(worldPoint);
+            var dirA = lastLeft.subtract(lastRight).normalize();
+            var dirB = nextLeft.subtract(nextRight).normalize();
+            var curveStrength = 1 - Math.abs(dirA.dotProduct(dirB));
             
-            // draw a quad from lastLeft -> nextLeft -> nextRight -> lastRight
-            
-            var lengthRight = nextRight.distanceTo(lastRight);
-            lengthRight = Math.clamp(lengthRight, 0, 1);
-            var lengthLeft = nextLeft.distanceTo(lastLeft);
-            lengthLeft = Math.clamp(lengthLeft, 0, 1);
-            
-            var uMin = sprite.getFrameU(0);
-            var uMax = sprite.getFrameU(1);
-            var vMin = sprite.getFrameV(0);
-            var vMaxLeft = sprite.getFrameV((float) lengthLeft);
-            var vMaxRight = sprite.getFrameV((float) lengthRight);
-            
-            var botRight = Vertex.create(lastRight, uMin, vMin, worldPos);
-            var topRight = Vertex.create(nextRight, uMin, vMaxRight, worldPos);
-            var topLeft = Vertex.create(nextLeft, uMax, vMaxLeft, worldPos);
-            var botLeft = Vertex.create(lastLeft, uMax, vMin, worldPos);
-            
-            result.add(topRight);
-            result.add(topLeft);
-            result.add(botLeft);
-            result.add(botRight);
-            
+            // split into 2 segments for strong curved segments
+            if (curveStrength > 0.025) {
+                var midProgress = (i + 0.5f) / (float) segmentCount;
+                var worldPointMid = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, midProgress);
+                var localPointMid = worldPointMid.subtract(entity.getPos().toCenterPos());
+                
+                var directionMid = localPointMid.subtract(localPoint);
+                var crossMid = directionMid.crossProduct(new Vec3d(0, 1, 0)).normalize();
+                
+                var midRight = localPointMid.add(crossMid.multiply(lineWidth)).add(0.5f, 0.5f, 0.5f);
+                var midLeft = localPointMid.add(crossMid.multiply(-lineWidth)).add(0.5f, 0.5f, 0.5f);
+                
+                direction = localPointNext.subtract(localPointMid);
+                cross = direction.crossProduct(new Vec3d(0, 1, 0)).normalize();
+                if (last)
+                    cross = conveyorEndDir.crossProduct(new Vec3d(0, 1, 0)).normalize();
+                
+                nextRight = localPointNext.add(cross.multiply(lineWidth)).add(0.5f, 0.5f, 0.5f);
+                nextLeft = localPointNext.add(cross.multiply(-lineWidth)).add(0.5f, 0.5f, 0.5f);
+                
+                addSegmentVertices(midRight, lastRight, midLeft, lastLeft, sprite, worldPos, result,0, 0.5f);
+                addSegmentVertices(nextRight, midRight, nextLeft, midLeft, sprite, worldPos, result, 0.5f, 1f);
+            } else {
+                addSegmentVertices(nextRight, lastRight, nextLeft, lastLeft, sprite, worldPos, result, 0, 1);
+            }
             lastRight = nextRight;
             lastLeft = nextLeft;
+            
+            // draw a quad from lastLeft -> nextLeft -> nextRight -> lastRight
         }
         
-        return result.toArray(Vertex[]::new);
+        return result.toArray(Quad[]::new);
+    }
+    
+    private static void addSegmentVertices(Vec3d nextRight, Vec3d lastRight, Vec3d nextLeft, Vec3d lastLeft, Sprite sprite, BlockPos worldPos, ArrayList<Quad> result, float vStart, float vEnd) {
+
+        
+        var uMin = sprite.getFrameU(0);
+        var uMax = sprite.getFrameU(1);
+        var vMin = sprite.getFrameV(vStart);
+        var vMax = sprite.getFrameV(vEnd);
+        
+        var botRight = Vertex.create(lastRight, uMin, vMin);
+        var topRight = Vertex.create(nextRight, uMin, vMax);
+        var topLeft = Vertex.create(nextLeft, uMax, vMax);
+        var botLeft = Vertex.create(lastLeft, uMax, vMin);
+        
+        var quad = new Quad(topRight, topLeft, botLeft, botRight, worldPos);
+        result.add(quad);
     }
     
     @Override
@@ -134,7 +162,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         if (entity == null || entity.getWorld() == null) return;
         
-        if (entity.getTarget() == null || entity.getTarget().getManhattanDistance(entity.getPos()) < 2) return;
+        if (entity.getTarget() == null || entity.getTarget().getManhattanDistance(entity.getPos()) < 1) return;
         
         var targetCandidate = entity.getWorld().getBlockEntity(entity.getTarget(), BlockEntitiesContent.CHUTE_BLOCK.get());
         if (targetCandidate.isEmpty()) return;
@@ -148,32 +176,62 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         var lightRefreshInterval = 60;
         
-        var vertices = getOrComputeModel(entity, targetCandidate.get());
-        if (vertices == null) {
+        var quads = getOrComputeModel(entity, targetCandidate.get());
+        if (quads == null) {
             matrices.pop();
             return;
         }
         
-        for (var vertex : vertices) {
+        var lastLight = WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos());
+        
+        for (var quad : quads) {
             
-            final var worldPos = vertex.worldPos;
-            var worldLight = lightmapCache.computeIfAbsent(vertex.worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
+            final var worldPos = quad.worldPos;
+            var worldLight = lightmapCache.computeIfAbsent(quad.worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
             if (entity.getWorld().getTime() % lightRefreshInterval == 0) {
-                lightmapCache.put(vertex.worldPos.asLong(), WorldRenderer.getLightmapCoordinates(entity.getWorld(), vertex.worldPos));
+                lightmapCache.put(quad.worldPos.asLong(), WorldRenderer.getLightmapCoordinates(entity.getWorld(), quad.worldPos));
             }
             
-            consumer.vertex(modelMatrix, vertex.x, vertex.y, vertex.z)
+            var renderedVertex = quad.a;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
               .color(Colors.WHITE)
-              .texture(vertex.u, vertex.v)
+              .texture(renderedVertex.u, renderedVertex.v)
               .normal(entry, 0, 1, 0)
               .light(worldLight)
               .overlay(overlay);
+            
+            renderedVertex = quad.b;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(worldLight)
+              .overlay(overlay);
+            
+            renderedVertex = quad.c;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(lastLight)
+              .overlay(overlay);
+            
+            renderedVertex = quad.d;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(lastLight)
+              .overlay(overlay);
+            
+            lastLight = worldLight;
         }
         
         matrices.pop();
         
         // render items
         var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta);
+        if (renderedItems.isEmpty()) return;
         
         // all positions here are in world space
         var conveyorStartPoint = entity.getPos();
@@ -220,6 +278,10 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     }
     
     private Map<Float, ItemStack> getRenderedStacks(float time) {
+        
+//        if (true) {
+//            return new HashMap<>();
+//        }
         
         time  = time % 100;
         
