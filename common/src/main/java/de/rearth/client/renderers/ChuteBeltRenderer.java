@@ -43,9 +43,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     
     private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
         
-        if (true) {
-            return createSplineModel(entity, target);
-        }
+//        if (true) {
+//            return createSplineModel(entity, target);
+//        }
         
         return cachedModel.computeIfAbsent(entity.getPos().asLong(), key -> createSplineModel(entity, target));
     }
@@ -73,7 +73,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         // todo move forward in different increments, and adjust segmentSize dynamically based on distance between points?
         var segmentSize = 0.75f;
         var segmentCount = (int) Math.ceil(totalDist / segmentSize);
-        var lineWidth = 0.35f;
+        var lineWidth = 0.4f;
         
         var beginRight = conveyorStartDir.crossProduct(new Vec3d(0, 1, 0)).normalize();
         
@@ -212,7 +212,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         if (targetCandidate.isEmpty()) return;
         
         matrices.push();
-        matrices.translate(0, 0.05, 0);
+        matrices.translate(0, 0.08, 0);
         
         var entry = matrices.peek();
         var modelMatrix = entry.getPositionMatrix();
@@ -279,7 +279,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var conveyorStartPoint = entity.getPos();
         var conveyorEndPoint = entity.getTarget();
         var conveyorStartDir = Vec3d.of(entity.getOwnFacing().getVector());
-        var conveyorEndDir = Vec3d.of(targetCandidate.get().getOwnFacing().getOpposite().getVector());
+        var conveyorFacing = targetCandidate.get().getOwnFacing();
+        var conveyorEndDir = Vec3d.of(conveyorFacing.getOpposite().getVector());
         
         var conveyorMidPointsVisual = entity.getMidPointsWithTangents();
         var conveyorStartPointVisual = conveyorStartPoint.toCenterPos().add(conveyorStartDir.multiply(-0.5f));
@@ -301,19 +302,28 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var nextWorldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, nextProgress);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
             
-            var forward = nextWorldPoint.subtract(worldPoint).normalize();
-            var dot = new Vec3d(1, 0, 0).dotProduct(forward);
+            var forward = nextWorldPoint.subtract(worldPoint);
+            var flatForward = new Vec3d(forward.x, 0, forward.z).normalize();
+            var dot = new Vec3d(1, 0, 0).dotProduct(flatForward);
+            var angleRad = Math.acos(dot);
+            
+            if (flatForward.z > 0)
+                angleRad = -angleRad;
             
             matrices.push();
             matrices.translate(localPoint.x, localPoint.y, localPoint.z);
             matrices.translate(0.5f, 0.8f, 0.5f);
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((float) Math.toDegrees(dot)));
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((float) Math.toDegrees(angleRad)));
             matrices.scale(0.6f, 0.6f, 0.6f);
+            
+            var worldPos = BlockPos.ofFloored(worldPoint);
+            
+            var worldLight = lightmapCache.computeIfAbsent(worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
             
             MinecraftClient.getInstance().getItemRenderer().renderItem(
               renderedStack,
               ModelTransformationMode.FIXED,
-              light,
+              worldLight,
               overlay,
               matrices,
               vertexConsumers,
@@ -327,10 +337,6 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     }
     
     private Map<Float, ItemStack> getRenderedStacks(float time, float travelDuration) {
-        
-//        if (true) {
-//            return new HashMap<>();
-//        }
         
         time  = time % travelDuration;
         
