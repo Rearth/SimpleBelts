@@ -45,6 +45,8 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     
     @Override
     public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        return BlockEntityProvider.super.getTicker(world, state, type); // todo
+        return ((world1, pos, state1, blockEntity) -> {
+            if (blockEntity instanceof ChuteBlockEntity chuteBlockEntity) chuteBlockEntity.tick(world1, pos, state1, chuteBlockEntity);
+        });
     }
 }

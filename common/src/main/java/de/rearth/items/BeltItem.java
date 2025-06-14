@@ -34,7 +34,8 @@ public class BeltItem extends Item {
         if (!world.isClient() && user.isSneaking()) {
             var stack = user.getStackInHand(hand);
             stack.remove(ComponentContent.MIDPOINTS.get());
-            stack.remove(ComponentContent.BELT.get());
+            stack.remove(ComponentContent.BELT_START.get());
+            stack.remove(ComponentContent.BELT_DIR.get());
             user.sendMessage(Text.literal("Reset belt!"));
         }
         
@@ -50,27 +51,45 @@ public class BeltItem extends Item {
         
         var targetBlockPos = context.getBlockPos();
         
+        var hasStart = stack.contains(ComponentContent.BELT_START.get()) && stack.contains(ComponentContent.BELT_DIR.get());
+        
         var chuteCandidate = context.getWorld().getBlockEntity(targetBlockPos, BlockEntitiesContent.CHUTE_BLOCK.get());
         if (chuteCandidate.isPresent()) {
             var chuteEntity = chuteCandidate.get();
             
-            if (stack.contains(ComponentContent.BELT.get())) {
-                context.getPlayer().sendMessage(Text.literal("Created belt!"));
-                var storedPos = stack.get(ComponentContent.BELT.get());
+            if (hasStart) {
+                // create end
+                var startPos = stack.get(ComponentContent.BELT_START.get());
+                var startDir = stack.get(ComponentContent.BELT_DIR.get());
                 var midPoints = stack.getOrDefault(ComponentContent.MIDPOINTS.get(), new ArrayList<BlockPos>());
-                var usedMidPoints = new ArrayList<>(midPoints); // ensure we have a mutable copy
-                Collections.reverse(usedMidPoints);
-                chuteEntity.assignFromBeltItem(storedPos, usedMidPoints);
-                stack.remove(ComponentContent.BELT.get());
+                var endPos = targetBlockPos;
+                var endDir = chuteEntity.getOwnFacing();
+                
+                createBelt(startPos, startDir, midPoints, endPos, endDir, context.getWorld());
+                
                 stack.remove(ComponentContent.MIDPOINTS.get());
+                stack.remove(ComponentContent.BELT_START.get());
+                stack.remove(ComponentContent.BELT_DIR.get());
+                
+                context.getPlayer().sendMessage(Text.literal("Created Belt!"));
+                
             } else {
-                context.getPlayer().sendMessage(Text.literal("Stored start position!"));
-                stack.set(ComponentContent.BELT.get(), targetBlockPos);
+                // assign manual start
+                var startPos = targetBlockPos;
+                var startDir = chuteEntity.getOwnFacing();
+                
+                stack.set(ComponentContent.BELT_START.get(), startPos);
+                stack.set(ComponentContent.BELT_DIR.get(), startDir);
+                
+                context.getPlayer().sendMessage(Text.literal("Stored Start!"));
             }
+            
+            return ActionResult.SUCCESS;
         }
         
-        var holderCandidate = context.getWorld().getBlockState(targetBlockPos);
-        if (holderCandidate.getBlock().equals(BlockContent.CONVEYOR_SUPPORT_BLOCK.get())) {
+        var supportCandidate = context.getWorld().getBlockState(targetBlockPos);
+        if (hasStart && supportCandidate.getBlock().equals(BlockContent.CONVEYOR_SUPPORT_BLOCK.get())) {
+            // store midpoint
             var list = new ArrayList<BlockPos>();
             if (stack.contains(ComponentContent.MIDPOINTS.get())) {
                 list.addAll(stack.get(ComponentContent.MIDPOINTS.get()));
@@ -84,16 +103,83 @@ public class BeltItem extends Item {
             list.add(targetBlockPos);
             stack.set(ComponentContent.MIDPOINTS.get(), list);
             context.getPlayer().sendMessage(Text.literal("Stored midpoint!"));
+            
+            return ActionResult.SUCCESS;
+        }
+        
+        // at this point, no existing midpoint or start is being targeted, so we try to store the potential positions of a new one.
+        // this is done by taking the block on the surface of the target. For grounds/walls, the direction is determined by the player. Otherwise facing away from the target.
+        var targetDir = context.getSide();
+        targetBlockPos = targetBlockPos.add(context.getSide().getVector());
+        if (context.getSide().getAxis().equals(Direction.Axis.Y)) {
+            targetDir = context.getHorizontalPlayerFacing().getOpposite();
+        }
+        
+        var candidateState = context.getWorld().getBlockState(targetBlockPos);
+        if (candidateState.isReplaceable() || candidateState.isAir()) {
+            // create either new start or end at this position
+            if (hasStart) {
+                // create end
+                var startPos = stack.get(ComponentContent.BELT_START.get());
+                var startDir = stack.get(ComponentContent.BELT_DIR.get());
+                var midPoints = stack.getOrDefault(ComponentContent.MIDPOINTS.get(), new ArrayList<BlockPos>());
+                var endPos = targetBlockPos;
+                var endDir = targetDir.getOpposite();
+                
+                createBelt(startPos, startDir, midPoints, endPos, endDir, context.getWorld());
+                
+                stack.remove(ComponentContent.MIDPOINTS.get());
+                stack.remove(ComponentContent.BELT_START.get());
+                stack.remove(ComponentContent.BELT_DIR.get());
+                
+                context.getPlayer().sendMessage(Text.literal("Created Belt!"));
+                
+            } else {
+                var startPos = targetBlockPos;
+                var startDir = targetDir;
+                
+                stack.set(ComponentContent.BELT_START.get(), startPos);
+                stack.set(ComponentContent.BELT_DIR.get(), startDir);
+                
+                context.getPlayer().sendMessage(Text.literal("Stored Start!"));
+            }
         }
         
         return ActionResult.SUCCESS;
     }
     
+    // creates optional chute entities at start and end
+    @SuppressWarnings("OptionalIsPresent")
+    private void createBelt(BlockPos start, Direction startDir, List<BlockPos> supports, BlockPos end, Direction endDir, World world) {
+        
+        // optionally create start entity
+        var startState = world.getBlockState(start);
+        var startCandidate = world.getBlockEntity(start, BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (startCandidate.isEmpty() && (startState.isReplaceable() || startState.isAir())) {
+            world.setBlockState(start, BlockContent.CHUTE_BLOCK.get().getDefaultState().with(HorizontalFacingBlock.FACING, startDir));
+            startCandidate = world.getBlockEntity(start, BlockEntitiesContent.CHUTE_BLOCK.get());
+        }
+        
+        // optionally create end entity
+        var endState = world.getBlockState(end);
+        var endCandidate = world.getBlockEntity(end, BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (endCandidate.isEmpty() && (endState.isReplaceable() || endState.isAir())) {
+            world.setBlockState(end, BlockContent.CHUTE_BLOCK.get().getDefaultState().with(HorizontalFacingBlock.FACING, endDir));
+            endCandidate = world.getBlockEntity(end, BlockEntitiesContent.CHUTE_BLOCK.get());
+        }
+        
+        // create belt in block entity
+        if (startCandidate.isPresent() &&  endCandidate.isPresent()) {
+            var startEntity = startCandidate.get();
+            startEntity.assignFromBeltItem(end, supports);
+        }
+    }
+    
     @Override
     public void appendTooltip(ItemStack stack, TooltipContext context, List<Text> tooltip, TooltipType type) {
         
-        if (stack.contains(ComponentContent.BELT.get())) {
-            var targetPos = stack.get(ComponentContent.BELT.get());
+        if (stack.contains(ComponentContent.BELT_START.get())) {
+            var targetPos = stack.get(ComponentContent.BELT_START.get());
             tooltip.add(Text.literal(targetPos.toShortString()));
         }
         

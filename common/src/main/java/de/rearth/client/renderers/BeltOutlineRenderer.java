@@ -16,10 +16,7 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.Pair;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.util.math.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,43 +31,90 @@ public class BeltOutlineRenderer {
         if (player == null || client.crosshairTarget == null || client.crosshairTarget.getType() != HitResult.Type.BLOCK)
             return;
         
-        var itemStack = player.getMainHandStack();
+        var stack = player.getMainHandStack();
+        var blockHit = ((BlockHitResult) client.crosshairTarget);
         
-        if (!(itemStack.getItem() instanceof BeltItem) || !itemStack.contains(ComponentContent.BELT.get())) return;
-        var startBlockPos = itemStack.get(ComponentContent.BELT.get());
-        if (startBlockPos == null || startBlockPos.equals(BlockPos.ORIGIN)) return;
+        if (!(stack.getItem() instanceof BeltItem)) return;
+        
+        var hasStart = stack.contains(ComponentContent.BELT_START.get()) && stack.contains(ComponentContent.BELT_DIR.get());
+        if (!hasStart) {
+            // render just start
+            
+            var couldBePlaced = false;
+            
+            // in world space
+            var potentialStart = blockHit.getBlockPos().add(blockHit.getSide().getVector());
+            var startDir = blockHit.getSide();
+            if (blockHit.getSide().getAxis().equals(Direction.Axis.Y))
+                startDir = player.getHorizontalFacing().getOpposite();
+            
+            var startState = world.getBlockState(potentialStart);
+            if (startState.isReplaceable() || startState.isAir())
+                couldBePlaced = true;
+            
+            var targetedChuteCandidate = world.getBlockEntity(blockHit.getBlockPos(), BlockEntitiesContent.CHUTE_BLOCK.get());
+            if (targetedChuteCandidate.isPresent()) {
+                var chuteEntity = targetedChuteCandidate.get();
+                startDir = chuteEntity.getOwnFacing();
+                potentialStart = blockHit.getBlockPos();
+                couldBePlaced = true;
+            }
+            
+            var boxDirectionOffset = Vec3d.of(startDir.getVector()).multiply(0.1 + (world.getTime() % 10) / 20f);
+            var bowLower = potentialStart.toCenterPos().subtract(Vec3d.of(startDir.getVector()).multiply(0.4f)).subtract(0.1f, 0.1f, 0.1f);
+            var boxUpper = potentialStart.toCenterPos().subtract(Vec3d.of(startDir.getVector()).multiply(0.4f)).add(0.1f, 0.1f, 0.1f).add(boxDirectionOffset);
+            var box = new Box(bowLower, boxUpper);
+            
+            matrixStack.push();
+            var cameraPos = camera.getPos();
+            matrixStack.translate(-cameraPos.getX(), -cameraPos.getY(), -cameraPos.getZ());
+            
+            WorldRenderer.drawBox(matrixStack, consumer.getBuffer(RenderLayer.getLines()), box, couldBePlaced ? 0.1f : 1f, couldBePlaced ? 0.8f : 0.1f, couldBePlaced ? 0.7f : 0f, 0.9f);
+            
+            matrixStack.pop();
+            
+            return;
+        }
+        
+        var startBlockPos = stack.get(ComponentContent.BELT_START.get());
+        var startFacing = stack.get(ComponentContent.BELT_DIR.get());
+        if (startBlockPos == null || startBlockPos.equals(BlockPos.ORIGIN) || startFacing == null) return;
         
         var startPos = startBlockPos.toCenterPos();
-        var endBlockPos = ((BlockHitResult) client.crosshairTarget).getBlockPos();
-        var endPos = endBlockPos.toCenterPos();
+        var startDir = startFacing.getVector();
+        var midPoints = BeltItem.getStoredMidpoints(stack, world);
         
-        var startCandidate = world.getBlockEntity(startBlockPos, BlockEntitiesContent.CHUTE_BLOCK.get());
-        var endCandidate = world.getBlockEntity(endBlockPos, BlockEntitiesContent.CHUTE_BLOCK.get());
-        var endState = world.getBlockState(endBlockPos);
+        BlockPos endBlockPos;
+        Direction endDir;
         
-        if (startCandidate.isEmpty()) return;
-        var startDir = startCandidate.get().getOwnFacing().getVector();
-        
-        var midPoints = BeltItem.getStoredMidpoints(itemStack, world);
-        
-        Vec3i endDir;
-        if (endCandidate.isPresent()) {
-            endDir = endCandidate.get().getOwnFacing().getOpposite().getVector();
-        } else if (endState.getBlock().equals(BlockContent.CONVEYOR_SUPPORT_BLOCK.get())) {
-            endDir = endState.get(HorizontalFacingBlock.FACING).getVector();
-            var reversedEndDir = endDir.multiply(-1);
+        var endChuteCandidate = world.getBlockEntity(blockHit.getBlockPos(), BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (endChuteCandidate.isPresent()) {
+            var endChute = endChuteCandidate.get();
+            endBlockPos = blockHit.getBlockPos();
+            endDir = endChute.getOwnFacing().getOpposite();
+        } else if (world.getBlockState(blockHit.getBlockPos()).getBlock().equals(BlockContent.CONVEYOR_SUPPORT_BLOCK.get())) {
+            var conveyorPos = blockHit.getBlockPos();
+            var conveyorFacing = world.getBlockState(blockHit.getBlockPos()).get(HorizontalFacingBlock.FACING);
+            var reversedConveyorFacing = conveyorFacing.getVector().multiply(-1);
             var lastEnd = midPoints.isEmpty() ? startBlockPos : midPoints.getLast().getLeft();
-            var distA = endBlockPos.add(endDir).getSquaredDistance(lastEnd);
-            var distB = endBlockPos.add(reversedEndDir).getSquaredDistance(lastEnd);
-            if (distB > distA) endDir = reversedEndDir;
+            var distA = conveyorPos.add(conveyorFacing.getVector()).getSquaredDistance(lastEnd);
+            var distB = conveyorPos.add(reversedConveyorFacing).getSquaredDistance(lastEnd);
+            endDir = distB < distA ? conveyorFacing : conveyorFacing.getOpposite();
+            endBlockPos = conveyorPos;
         } else {
-            endDir = new Vec3i(0, 0, 0);
+            endBlockPos = blockHit.getBlockPos().add(blockHit.getSide().getVector());
+            endDir = blockHit.getSide().getOpposite();
+            if (endDir.getAxis().isVertical())
+                endDir = player.getHorizontalFacing().getOpposite();
         }
+        
+        var visualEndPos = endBlockPos.toCenterPos();
+        var visualEndDir = endDir.getVector();
         
         matrixStack.push();
         var cameraPos = camera.getPos();
         matrixStack.translate(-cameraPos.getX(), -cameraPos.getY(), -cameraPos.getZ());
-        var linePoints = getPositionsAlongLine(startPos, endPos, startDir, endDir, midPoints);
+        var linePoints = getPositionsAlongLine(startPos, visualEndPos, startDir, visualEndDir, midPoints);
         
         for (var center : linePoints) {
             var lineRadius = 0.05f;

@@ -30,7 +30,6 @@ import java.util.Map;
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
     // yeah this isnt the way to store per-instance data, this needs to be moved to the entity maybe? With env annotations?
-    private static final HashMap<Long, Quad[]> cachedModel = new HashMap<>();
     private static final HashMap<Long, Integer> lightmapCache = new HashMap<>();
     
     public record Vertex(float x, float y, float z, float u, float v) {
@@ -42,12 +41,15 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     public record Quad(Vertex a, Vertex b, Vertex c, Vertex d, BlockPos worldPos) {}
     
     private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
-        
+    
 //        if (true) {
 //            return createSplineModel(entity, target);
 //        }
         
-        return cachedModel.computeIfAbsent(entity.getPos().asLong(), key -> createSplineModel(entity, target));
+        if (entity.renderedModel == null)
+            entity.renderedModel = createSplineModel(entity, target);
+        
+        return entity.renderedModel;
     }
     
     private static Quad[] createSplineModel(ChuteBlockEntity entity, ChuteBlockEntity target) {

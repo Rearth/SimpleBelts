@@ -3,10 +3,12 @@ package de.rearth.blocks;
 import de.rearth.Belts;
 import de.rearth.BlockContent;
 import de.rearth.BlockEntitiesContent;
+import de.rearth.client.renderers.ChuteBeltRenderer;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.BlockEntityTicker;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
@@ -20,13 +22,31 @@ import net.minecraft.world.World;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ChuteBlockEntity extends BlockEntity {
+public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<ChuteBlockEntity> {
     
+    // everything in this section is synced to the client
     private BlockPos target;
     private List<BlockPos> midPoints = new ArrayList<>();
     
+    private boolean pendingSetupPacket = false;
+    
+    // client only data, used for rendering
+    public ChuteBeltRenderer.Quad[] renderedModel;
+    
     public ChuteBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntitiesContent.CHUTE_BLOCK.get(), pos, state);
+    }
+    
+    @Override
+    public void tick(World world, BlockPos pos, BlockState state, ChuteBlockEntity blockEntity) {
+        
+        if (world.isClient) return;
+        
+        if (pendingSetupPacket) {
+            pendingSetupPacket = false;
+            NetworkManager.sendToPlayer((ServerPlayerEntity) this.getWorld().getPlayers().getFirst(), new ChuteDataPacket(pos, target, midPoints));
+        }
+        
     }
     
     public BlockPos getTarget() {
@@ -40,7 +60,7 @@ public class ChuteBlockEntity extends BlockEntity {
     public void assignFromBeltItem(BlockPos target, List<BlockPos> midpoints) {
         this.target = target;
         this.midPoints = midpoints;
-        NetworkManager.sendToPlayer((ServerPlayerEntity) this.getWorld().getPlayers().getFirst(), new ChuteDataPacket(pos, target, midpoints));
+        pendingSetupPacket = true;
     }
     
     public List<Pair<BlockPos, Direction>> getMidPointsWithTangents() {
@@ -50,14 +70,16 @@ public class ChuteBlockEntity extends BlockEntity {
                  .toList();
     }
     
-    public List<BlockPos> getMidPoints() {
-        return midPoints;
-    }
-    
     public static void receivePacket(ChuteDataPacket packet, World world) {
         var candidate = world.getBlockEntity(packet.ownPos, BlockEntitiesContent.CHUTE_BLOCK.get());
         if (candidate.isPresent()) {
             var entity = candidate.get();
+            
+            // reset internal client cache
+            if (entity.target != null && !entity.target.equals(packet.targetPos)) {
+                entity.renderedModel = null;
+            }
+            
             entity.target = packet.targetPos;
             entity.midPoints = packet.midpoints;
         }
