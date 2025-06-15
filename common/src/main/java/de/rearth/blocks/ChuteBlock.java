@@ -44,6 +44,13 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     }
     
     @Override
+    protected boolean onSyncedBlockEvent(BlockState state, World world, BlockPos pos, int type, int data) {
+        super.onSyncedBlockEvent(state, world, pos, type, data);
+        var blockEntity = world.getBlockEntity(pos);
+        return blockEntity != null && blockEntity.onSyncedBlockEvent(type, data);
+    }
+    
+    @Override
     public @Nullable <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
         return ((world1, pos, state1, blockEntity) -> {
             if (blockEntity instanceof ChuteBlockEntity chuteBlockEntity) chuteBlockEntity.tick(world1, pos, state1, chuteBlockEntity);

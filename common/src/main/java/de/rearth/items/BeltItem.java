@@ -135,6 +135,9 @@ public class BeltItem extends Item {
                 context.getPlayer().sendMessage(Text.literal("Created Belt!"));
                 
             } else {
+                if (!context.getSide().getAxis().equals(Direction.Axis.Y)) {
+                    targetDir = targetDir.getOpposite();
+                }
                 var startPos = targetBlockPos;
                 var startDir = targetDir.getOpposite();
                 

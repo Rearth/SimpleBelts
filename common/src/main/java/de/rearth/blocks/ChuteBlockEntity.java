@@ -11,17 +11,25 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
+import net.minecraft.network.listener.ClientPlayPacketListener;
 import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<ChuteBlockEntity> {
@@ -29,8 +37,6 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     // everything in this section is synced to the client
     private BlockPos target;
     private List<BlockPos> midPoints = new ArrayList<>();
-    
-    private boolean pendingSetupPacket = false;
     
     // client only data, used for rendering
     @Environment(EnvType.CLIENT)
@@ -45,11 +51,42 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         
         if (world.isClient) return;
         
-        if (pendingSetupPacket) {
-            pendingSetupPacket = false;
-            NetworkManager.sendToPlayer((ServerPlayerEntity) this.getWorld().getPlayers().getFirst(), new ChuteDataPacket(pos, target, midPoints));
-        }
+    }
+    
+    @Override
+    protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+        super.writeNbt(nbt, registryLookup);
+        if (target != null)
+            nbt.putLong("target", target.asLong());
         
+        if (!midPoints.isEmpty()) {
+            var midpointsArray = midPoints.stream().map(BlockPos::asLong).toList();
+            nbt.putLongArray("midpoints", midpointsArray);
+        }
+    }
+    
+    @Override
+    protected void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+        super.readNbt(nbt, registryLookup);
+        
+        target = BlockPos.fromLong(nbt.getLong("target"));
+        
+        var midPointsList = nbt.getLongArray("midpoints");
+        midPoints = Arrays.stream(midPointsList).mapToObj(BlockPos::fromLong).toList();
+        
+        renderedModel = null;
+    }
+    
+    @Override
+    public NbtCompound toInitialChunkDataNbt(RegistryWrapper.WrapperLookup registryLookup) {
+        var base = super.toInitialChunkDataNbt(registryLookup);
+        writeNbt(base, registryLookup);
+        return base;
+    }
+    
+    @Override
+    public @Nullable Packet<ClientPlayPacketListener> toUpdatePacket() {
+        return BlockEntityUpdateS2CPacket.create(this);
     }
     
     public BlockPos getTarget() {
@@ -63,7 +100,8 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     public void assignFromBeltItem(BlockPos target, List<BlockPos> midpoints) {
         this.target = target;
         this.midPoints = midpoints;
-        pendingSetupPacket = true;
+        if (world instanceof ServerWorld serverWorld)
+            serverWorld.getChunkManager().markForUpdate(pos);
     }
     
     public List<Pair<BlockPos, Direction>> getMidPointsWithTangents() {
@@ -71,36 +109,5 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
                  .filter(point -> world.getBlockState(point).getBlock().equals(BlockContent.CONVEYOR_SUPPORT_BLOCK.get()))
                  .map(point -> new Pair<>(point, world.getBlockState(point).get(HorizontalFacingBlock.FACING)))
                  .toList();
-    }
-    
-    public static void receivePacket(ChuteDataPacket packet, World world) {
-        var candidate = world.getBlockEntity(packet.ownPos, BlockEntitiesContent.CHUTE_BLOCK.get());
-        if (candidate.isPresent()) {
-            var entity = candidate.get();
-            
-            // reset internal client cache
-            entity.renderedModel = null;
-            
-            entity.target = packet.targetPos;
-            entity.midPoints = packet.midpoints;
-        }
-    }
-    
-    public record ChuteDataPacket(BlockPos ownPos, BlockPos targetPos,
-                                  List<BlockPos> midpoints) implements CustomPayload {
-        
-        public static PacketCodec<RegistryByteBuf, ChuteDataPacket> PACKET_CODEC = PacketCodec.tuple(
-          BlockPos.PACKET_CODEC, ChuteDataPacket::ownPos,
-          BlockPos.PACKET_CODEC, ChuteDataPacket::targetPos,
-          BlockPos.PACKET_CODEC.collect(PacketCodecs.toList()), ChuteDataPacket::midpoints,
-          ChuteDataPacket::new
-        );
-        
-        public static final CustomPayload.Id<ChuteDataPacket> FILTER_PACKET_ID = new CustomPayload.Id<>(Belts.id("chute"));
-        
-        @Override
-        public Id<? extends CustomPayload> getId() {
-            return FILTER_PACKET_ID;
-        }
     }
 }
