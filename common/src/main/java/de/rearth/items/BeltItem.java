@@ -112,7 +112,7 @@ public class BeltItem extends Item {
         var targetDir = context.getSide();
         targetBlockPos = targetBlockPos.add(context.getSide().getVector());
         if (context.getSide().getAxis().equals(Direction.Axis.Y)) {
-            targetDir = context.getHorizontalPlayerFacing().getOpposite();
+            targetDir = context.getHorizontalPlayerFacing();
         }
         
         var candidateState = context.getWorld().getBlockState(targetBlockPos);
@@ -124,7 +124,7 @@ public class BeltItem extends Item {
                 var startDir = stack.get(ComponentContent.BELT_DIR.get());
                 var midPoints = stack.getOrDefault(ComponentContent.MIDPOINTS.get(), new ArrayList<BlockPos>());
                 var endPos = targetBlockPos;
-                var endDir = targetDir.getOpposite();
+                var endDir = targetDir;
                 
                 createBelt(startPos, startDir, midPoints, endPos, endDir, context.getWorld());
                 

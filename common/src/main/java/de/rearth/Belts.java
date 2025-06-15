@@ -15,6 +15,7 @@ public final class Belts {
         ItemContent.ITEMS.register();
         BlockEntitiesContent.TYPES.register();
         ComponentContent.COMPONENTS.register();
+        ItemGroupContent.GROUPS.register();
     }
     
     public static Identifier id(String path) {

@@ -5,6 +5,8 @@ import de.rearth.BlockContent;
 import de.rearth.BlockEntitiesContent;
 import de.rearth.client.renderers.ChuteBeltRenderer;
 import dev.architectury.networking.NetworkManager;
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
@@ -31,6 +33,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     private boolean pendingSetupPacket = false;
     
     // client only data, used for rendering
+    @Environment(EnvType.CLIENT)
     public ChuteBeltRenderer.Quad[] renderedModel;
     
     public ChuteBlockEntity(BlockPos pos, BlockState state) {
@@ -76,16 +79,15 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             var entity = candidate.get();
             
             // reset internal client cache
-            if (entity.target != null && !entity.target.equals(packet.targetPos)) {
-                entity.renderedModel = null;
-            }
+            entity.renderedModel = null;
             
             entity.target = packet.targetPos;
             entity.midPoints = packet.midpoints;
         }
     }
     
-    public record ChuteDataPacket(BlockPos ownPos, BlockPos targetPos, List<BlockPos> midpoints) implements CustomPayload {
+    public record ChuteDataPacket(BlockPos ownPos, BlockPos targetPos,
+                                  List<BlockPos> midpoints) implements CustomPayload {
         
         public static PacketCodec<RegistryByteBuf, ChuteDataPacket> PACKET_CODEC = PacketCodec.tuple(
           BlockPos.PACKET_CODEC, ChuteDataPacket::ownPos,
