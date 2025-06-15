@@ -31,7 +31,6 @@ import java.util.Map;
 
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
-    // yeah this isnt the way to store per-instance data, this needs to be moved to the entity maybe? With env annotations?
     private static final HashMap<Long, Integer> lightmapCache = new HashMap<>();
     
     public record Vertex(float x, float y, float z, float u, float v) {
@@ -165,8 +164,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         // right skirt
         uMin = sprite.getFrameU(0);
         uMax = sprite.getFrameU(2/16f);
-        vMin = sprite.getFrameV(0);
-        vMax = sprite.getFrameV(1);
+        vMin = sprite.getFrameV(vStart);
+        vMax = sprite.getFrameV(vEnd);
         
         topRight = Vertex.create(nextRight.add(0, -skirtHeight, 0), uMax, vMax);
         topLeft = Vertex.create(nextRight, uMin, vMax);
@@ -179,8 +178,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         // left skirt
         uMin = sprite.getFrameU(0);
         uMax = sprite.getFrameU(2/16f);
-        vMin = sprite.getFrameV(0);
-        vMax = sprite.getFrameV(1);
+        vMin = sprite.getFrameV(vStart);
+        vMax = sprite.getFrameV(vEnd);
         
         topRight = Vertex.create(nextLeft.add(0, -skirtHeight, 0), uMax, vMax);
         topLeft = Vertex.create(nextLeft, uMin, vMax);
