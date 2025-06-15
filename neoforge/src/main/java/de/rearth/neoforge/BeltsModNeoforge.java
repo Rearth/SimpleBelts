@@ -1,14 +1,15 @@
 package de.rearth.neoforge;
 
-import net.neoforged.bus.EventBus;
+import de.rearth.api.item.ItemApi;
 import net.neoforged.fml.common.Mod;
 
 import de.rearth.Belts;
-import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(Belts.MOD_ID)
-public final class ExampleModNeoForge {
-    public ExampleModNeoForge() {
+public final class BeltsModNeoforge {
+    public BeltsModNeoforge() {
+        
+        ItemApi.BLOCK = new NeoforgeItemApiImpl();
         
         // Run our common setup.
         Belts.init();

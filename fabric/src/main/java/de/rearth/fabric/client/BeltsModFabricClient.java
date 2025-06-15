@@ -8,14 +8,13 @@ import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.model.BakedQuadFactory;
 
-public final class ExampleModFabricClient implements ClientModInitializer {
+public final class BeltsModFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         BeltsClient.init();
         
-        WorldRenderEvents.BLOCK_OUTLINE.register(ExampleModFabricClient::renderBlockOutline);
+        WorldRenderEvents.BLOCK_OUTLINE.register(BeltsModFabricClient::renderBlockOutline);
         
         BeltsClient.registerRenderers();
         

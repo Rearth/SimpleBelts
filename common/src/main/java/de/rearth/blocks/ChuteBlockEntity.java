@@ -1,26 +1,23 @@
 package de.rearth.blocks;
 
-import de.rearth.Belts;
 import de.rearth.BlockContent;
 import de.rearth.BlockEntitiesContent;
+import de.rearth.api.ApiLookupCache;
+import de.rearth.api.item.ItemApi;
 import de.rearth.client.renderers.ChuteBeltRenderer;
-import dev.architectury.networking.NetworkManager;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.network.listener.ClientPlayPacketListener;
-import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
@@ -38,6 +35,9 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     private BlockPos target;
     private List<BlockPos> midPoints = new ArrayList<>();
     
+    private ApiLookupCache<ItemApi.InventoryStorage> sourceCache;
+    private ApiLookupCache<ItemApi.InventoryStorage> targetCache;
+    
     // client only data, used for rendering
     @Environment(EnvType.CLIENT)
     public ChuteBeltRenderer.Quad[] renderedModel;
@@ -48,8 +48,47 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     
     @Override
     public void tick(World world, BlockPos pos, BlockState state, ChuteBlockEntity blockEntity) {
-        
         if (world.isClient) return;
+        
+        if (target == null || target.equals(BlockPos.ORIGIN)) return;
+        
+        if (sourceCache == null) {
+            sourceCache = ApiLookupCache.create(pos.add(getOwnFacing().getOpposite().getVector()), getOwnFacing(), world, ((world1, targetPos, state1, entity, direction) -> ItemApi.BLOCK.find(world1, targetPos, state1, entity, direction)));
+        }
+        
+        if (targetCache == null) {
+            var conveyorEndEntityCandidate = world.getBlockEntity(target, BlockEntitiesContent.CHUTE_BLOCK.get());
+            if (conveyorEndEntityCandidate.isPresent()) {
+                var conveyorEndEntity = conveyorEndEntityCandidate.get();
+                targetCache = ApiLookupCache.create(target.add(conveyorEndEntity.getOwnFacing().getOpposite().getVector()), conveyorEndEntity.getOwnFacing(), world, ((world1, targetPos, state1, entity, direction) -> ItemApi.BLOCK.find(world1, targetPos, state1, entity, direction)));
+            } else {
+                return;
+            }
+        }
+        
+        // todo fix source candidate randomly return null on NF after some time?
+        var sourceCandidate = sourceCache.lookup();
+        if (sourceCandidate != null) {
+            for (int i = 0; i < sourceCandidate.getSlotCount(); i++) {
+                var slotStack = sourceCandidate.getStackInSlot(i);
+                if (slotStack.isEmpty()) continue;
+                
+                var extracted = sourceCandidate.extract(slotStack, true);
+                if (extracted > 0) {
+                    System.out.println("extracted: " + slotStack + " " + extracted);
+                    break;
+                }
+            }
+        }
+        
+        var targetCandidate = targetCache.lookup();
+        if (targetCandidate != null) {
+            var toInsert = new ItemStack(Items.STICK);
+            var inserted = targetCandidate.insert(toInsert, true);
+            
+            if (inserted > 0)
+                System.out.println("inserted: " + inserted);
+        }
         
     }
     
@@ -65,6 +104,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         }
     }
     
+    @SuppressWarnings("OptionalIsPresent")
     @Override
     protected void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         super.readNbt(nbt, registryLookup);
@@ -74,7 +114,11 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         var midPointsList = nbt.getLongArray("midpoints");
         midPoints = Arrays.stream(midPointsList).mapToObj(BlockPos::fromLong).toList();
         
-        renderedModel = null;
+        if (world == null) return;
+        
+        if (world.isClient) {
+            renderedModel = null;
+        }
     }
     
     @Override

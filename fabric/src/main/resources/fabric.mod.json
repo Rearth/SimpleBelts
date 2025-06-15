@@ -16,10 +16,10 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "de.rearth.fabric.ExampleModFabric"
+      "de.rearth.fabric.BeltsModFabric"
     ],
     "client": [
-      "de.rearth.fabric.client.ExampleModFabricClient"
+      "de.rearth.fabric.client.BeltsModFabricClient"
     ]
   },
   "mixins": [
