@@ -1,9 +1,11 @@
 package de.rearth.neoforge.client;
 
 import de.rearth.Belts;
+import de.rearth.BlockContent;
 import de.rearth.client.BeltsClient;
 import de.rearth.client.renderers.BeltOutlineRenderer;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -36,6 +38,8 @@ public class BeltsModClientNeoForge {
         @SubscribeEvent
         public void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
             BeltsClient.registerRenderers();
+            
+            RenderLayers.setRenderLayer(BlockContent.CHUTE_BLOCK.get(), RenderLayer.getTranslucent());
         }
     }
     

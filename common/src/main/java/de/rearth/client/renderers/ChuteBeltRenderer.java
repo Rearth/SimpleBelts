@@ -1,6 +1,7 @@
 package de.rearth.client.renderers;
 
 import de.rearth.BlockEntitiesContent;
+import de.rearth.ItemContent;
 import de.rearth.blocks.ChuteBlockEntity;
 import de.rearth.util.SplineUtil;
 import net.minecraft.block.entity.BlockEntity;
@@ -12,6 +13,7 @@ import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.screen.PlayerScreenHandler;
@@ -75,7 +77,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         // todo move forward in different increments, and adjust segmentSize dynamically based on distance between points?
         var segmentSize = 0.75f;
         var segmentCount = (int) Math.ceil(totalDist / segmentSize);
-        var lineWidth = 0.4f;
+        var lineWidth = 0.33f;
         
         var beginRight = conveyorStartDir.crossProduct(new Vec3d(0, 1, 0)).normalize();
         
@@ -214,7 +216,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         if (targetCandidate.isEmpty()) return;
         
         matrices.push();
-        matrices.translate(0, 0.08, 0);
+        matrices.translate(0, -2/16f + 0.08f, 0);
         
         var entry = matrices.peek();
         var modelMatrix = entry.getPositionMatrix();
@@ -308,14 +310,29 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var flatForward = new Vec3d(forward.x, 0, forward.z).normalize();
             var dot = new Vec3d(1, 0, 0).dotProduct(flatForward);
             var angleRad = Math.acos(dot);
+            var angleUp = Math.acos(forward.normalize().dotProduct(flatForward));
             
-            if (flatForward.z > 0)
+            if (forward.y < 0)
+                angleUp = -angleUp;
+            
+            if (flatForward.z > 0) {
                 angleRad = -angleRad;
+            }
             
             matrices.push();
             matrices.translate(localPoint.x, localPoint.y, localPoint.z);
-            matrices.translate(0.5f, 0.8f, 0.5f);
+            matrices.translate(0.5f, 0.8f - 3/16f, 0.5f);
+            
+            if (!(renderedStack.getItem() instanceof BlockItem)) {
+                matrices.translate(0, -2 / 16f, 0);
+                matrices.scale(0.8f, 0.8f, 0.8f);
+            }
+            
             matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((float) Math.toDegrees(angleRad)));
+            if (Math.abs(angleUp) > 0.01f)
+                matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees((float) Math.toDegrees(angleUp)));
+            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(90));
+            
             matrices.scale(0.6f, 0.6f, 0.6f);
             
             var worldPos = BlockPos.ofFloored(worldPoint);
@@ -347,8 +364,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         progress2 = progress2 % 1;
         
         var res = new HashMap<Float,ItemStack>();
-        res.put(progress, new ItemStack(Items.STICK));
-        res.put(progress2, new ItemStack(Items.DIRT));
+        res.put(progress, new ItemStack(Items.IRON_BLOCK));
+        res.put(progress2, new ItemStack(Items.APPLE));
         return res;
     }
     

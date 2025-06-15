@@ -136,7 +136,7 @@ public class BeltItem extends Item {
                 
             } else {
                 var startPos = targetBlockPos;
-                var startDir = targetDir;
+                var startDir = targetDir.getOpposite();
                 
                 stack.set(ComponentContent.BELT_START.get(), startPos);
                 stack.set(ComponentContent.BELT_DIR.get(), startDir);

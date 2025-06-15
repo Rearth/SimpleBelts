@@ -1,10 +1,13 @@
 package de.rearth.fabric.client;
 
+import de.rearth.BlockContent;
 import de.rearth.client.BeltsClient;
 import de.rearth.client.renderers.BeltOutlineRenderer;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.model.BakedQuadFactory;
 
 public final class ExampleModFabricClient implements ClientModInitializer {
@@ -15,6 +18,8 @@ public final class ExampleModFabricClient implements ClientModInitializer {
         WorldRenderEvents.BLOCK_OUTLINE.register(ExampleModFabricClient::renderBlockOutline);
         
         BeltsClient.registerRenderers();
+        
+        BlockRenderLayerMap.INSTANCE.putBlock(BlockContent.CHUTE_BLOCK.get(), RenderLayer.getTranslucent());
         
     }
     
