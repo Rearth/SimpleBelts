@@ -1,7 +1,6 @@
 package de.rearth.client.renderers;
 
 import de.rearth.BlockEntitiesContent;
-import de.rearth.ItemContent;
 import de.rearth.blocks.ChuteBlockEntity;
 import de.rearth.util.SplineUtil;
 import net.minecraft.block.entity.BlockEntity;
@@ -15,19 +14,15 @@ import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.*;
-import net.minecraft.world.World;
-import org.joml.Quaternionf;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
@@ -293,13 +288,13 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var segmentPoints = SplineUtil.getPointPairs(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, transformedMidPoints);
         var totalDist = SplineUtil.getTotalLength(segmentPoints);
         
-        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta, (float) (totalDist * 22f));
+        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta, (float) (totalDist * 22f), entity);
         if (renderedItems.isEmpty()) return;
         
-        for (var itemData : renderedItems.entrySet()) {
-            var renderedStack = itemData.getValue();
-            var renderedProgress = itemData.getKey();
-            var nextProgress = itemData.getKey() + 0.03;
+        for (var itemData : renderedItems) {
+            var renderedStack = itemData.getRight();
+            var renderedProgress = itemData.getLeft();
+            var nextProgress = itemData.getLeft() + 0.03;
             
             var worldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, renderedProgress);
             var nextWorldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, nextProgress);
@@ -354,18 +349,10 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
     }
     
-    private Map<Float, ItemStack> getRenderedStacks(float time, float travelDuration) {
+    private List<Pair<Float, ItemStack>> getRenderedStacks(float time, float travelDuration, ChuteBlockEntity entity) {
         
-        time  = time % travelDuration;
+        return entity.getMovingItems();
         
-        var progress = time / travelDuration;
-        var progress2 = time / travelDuration + 0.6f;
-        progress2 = progress2 % 1;
-        
-        var res = new HashMap<Float,ItemStack>();
-        res.put(progress, new ItemStack(Items.IRON_BLOCK));
-        res.put(progress2, new ItemStack(Items.APPLE));
-        return res;
     }
     
     @Override

@@ -8,8 +8,6 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.ref.WeakReference;
-
 /**
  * ApiLookupCache is used to cache results from a lookup function (for example,
  * fetching a FluidStorage) based on a given block state and entity. The cache
@@ -25,8 +23,8 @@ public class ApiLookupCache<T> {
         T invoke(World world, BlockPos targetPos, BlockState state, @Nullable BlockEntity entity, @Nullable Direction direction);
     }
     
-    private WeakReference<BlockEntity> cachedEntity;
-    private WeakReference<T> cachedTarget;
+    private BlockEntity cachedEntity;
+    private T cachedTarget;
     
     // Cache the last known block state to avoid unnecessary refreshes.
     private BlockState lastBlockState;
@@ -38,8 +36,8 @@ public class ApiLookupCache<T> {
     private final LookupFunction<T> lookupFunction;
     
     private ApiLookupCache(BlockEntity cachedEntity, T cachedTarget, BlockPos targetPos, Direction direction, World world, LookupFunction<T> lookupFunction) {
-        this.cachedEntity = new WeakReference<>(cachedEntity);
-        this.cachedTarget = new WeakReference<>(cachedTarget);
+        this.cachedEntity = cachedEntity;
+        this.cachedTarget = cachedTarget;
         this.targetPos = targetPos;
         this.direction = direction;
         this.world = world;
@@ -67,14 +65,14 @@ public class ApiLookupCache<T> {
         
         // If cache is valid, return the cached target.
         if (isCacheValid()) {
-            return cachedTarget.get();
+            return cachedTarget;
         }
         
-        cachedTarget = new WeakReference<>(null);
-        cachedEntity = new WeakReference<>(null);
+        cachedTarget = null;
+        cachedEntity = null;
         
         refresh();
-        return cachedTarget.get();
+        return cachedTarget;
     }
     
     /**
@@ -88,7 +86,6 @@ public class ApiLookupCache<T> {
         
         // if no blockstate change has occurred, the lookup would fail anyway
         if (currentState.equals(lastBlockState)) {
-            lastBlockState = currentState;
             return;
         }
         
@@ -99,8 +96,8 @@ public class ApiLookupCache<T> {
             target = lookupFunction.invoke(world, targetPos, currentState, entity, direction);
         }
         
-        cachedTarget = new WeakReference<>(target);
-        cachedEntity = new WeakReference<>(entity);
+        cachedTarget = target;
+        cachedEntity = entity;
         lastBlockState = currentState;
     }
     
@@ -112,8 +109,8 @@ public class ApiLookupCache<T> {
      * @return true if the cache can be used; false otherwise.
      */
     private boolean isCacheValid() {
-        var entity = cachedEntity.get();
-        var target = cachedTarget.get();
+        var entity = cachedEntity;
+        var target = cachedTarget;
         
         // Check if block entity is valid.
         if (entity == null || entity.isRemoved()) {
