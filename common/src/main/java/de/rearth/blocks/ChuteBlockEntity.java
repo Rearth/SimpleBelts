@@ -5,12 +5,11 @@ import de.rearth.BlockEntitiesContent;
 import de.rearth.api.item.ItemApi;
 import de.rearth.client.renderers.ChuteBeltRenderer;
 import de.rearth.util.SplineUtil;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -44,11 +43,14 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     // this is calculated on both the client and server
     private BeltData beltData;
     
+    // used to check if a belt is used as target. Periodically updated on belt ends from the belt starts.
+    private long lastTargetedTime;
+    
     // client only data, used for rendering
-    @Environment(EnvType.CLIENT)
     public ChuteBeltRenderer.Quad[] renderedModel;
-    @Environment(EnvType.CLIENT)
     public Map<Short, Vec3d> lastRenderedPositions = new HashMap<>();
+    
+    private boolean networkDirty = false;
     
     public ChuteBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntitiesContent.CHUTE_BLOCK.get(), pos, state);
@@ -56,21 +58,62 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     
     @Override
     public void tick(World world, BlockPos pos, BlockState state, ChuteBlockEntity blockEntity) {
-        if (world == null || world.isClient) return;
+        if (world == null) return;
         
-        if (target == null || target.equals(BlockPos.ORIGIN)) return;
+        if (target == null || target.equals(BlockPos.ORIGIN)) {
+            if (!world.isClient && !movingItems.isEmpty()) {
+                dropContent(world, pos);
+            }
+            return;
+        }
+        
         if (beltData == null) {
             beltData = BeltData.create(this);
             if (world instanceof ServerWorld serverWorld)
                 serverWorld.getChunkManager().markForUpdate(pos);
         }
         
+        if (beltData == null) {
+            target = null;
+            midPoints = new ArrayList<>();
+            return;
+        }
+        
+        if (world.isClient) return;
+        
         moveItemsOnBelt();
         loadItemsOnBelt();
         
-        if (world instanceof ServerWorld serverWorld)
-            serverWorld.getChunkManager().markForUpdate(pos);
+        // refresh target
+        if (world.getTime() % 19 == 0)
+            assignTargetState(world);
         
+        
+        if (networkDirty && world instanceof ServerWorld serverWorld) {
+            serverWorld.getChunkManager().markForUpdate(pos);
+            networkDirty = false;
+        }
+        
+    }
+    
+    public void dropContent(World world, BlockPos pos) {
+        for (var beltItem : movingItems) {
+            var stack = beltItem.stack;
+            var spawnAt = pos.toCenterPos();
+            world.spawnEntity(new ItemEntity(world, spawnAt.x, spawnAt.y, spawnAt.z, stack));
+        }
+        
+        movingItems.clear();
+    }
+    
+    private void assignTargetState(World world) {
+        var beltTargetCandidate = world.getBlockEntity(target, BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (beltTargetCandidate.isPresent()) {
+            beltTargetCandidate.get().lastTargetedTime = world.getTime();
+        } else {
+            target = null;
+            midPoints = new ArrayList<>();
+        }
     }
     
     private void moveItemsOnBelt() {
@@ -93,6 +136,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
                 outputQueue++;
             } else {
                 pair.progress = (float) newProgress;
+                networkDirty = true;
             }
             
             // try to insert last item (if its in queue). Gets put into queue when the end is reached.
@@ -109,6 +153,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
                     targetInv.insert(insertionStack, false);
                     outputQueue = 0;    // reset queue
                     unloaded = true;
+                    networkDirty = true;
                 }
             }
         }
@@ -123,10 +168,12 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         var extractionInterval = (int) (20 / 0.8f) + 1;
         var extractionOffset = pos.asLong();
         
+        if ((world.getTime() + extractionOffset) % extractionInterval != 0) return;
+        
         if (getPotentialQueueStart() < 0) return;
         
         var source = ItemApi.BLOCK.find(world, pos.add(getOwnFacing().getOpposite().getVector()), null, null, getOwnFacing());
-        if ((world.getTime() + extractionOffset) % extractionInterval == 0 && source != null) {
+        if (source != null) {
             // try extracting first stack
             ItemStack extracted = null;
             for (int i = 0; i < source.getSlotCount(); i++) {
@@ -143,6 +190,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
                 var id = (short) world.random.nextBetween(Short.MIN_VALUE, Short.MAX_VALUE);
                 movingItems.addFirst(new BeltItem(id, extracted));
                 this.markDirty();
+                networkDirty = true;
             }
         }
     }
@@ -235,10 +283,18 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         return getCachedState().get(HorizontalFacingBlock.FACING);
     }
     
+    public boolean isUsed() {
+        var usedAsTarget = world.getTime() - lastTargetedTime < 40;
+        var usedAsSource = target != null && !target.equals(BlockPos.ORIGIN);
+        return usedAsTarget || usedAsSource;
+    }
+    
     public void assignFromBeltItem(BlockPos target, List<BlockPos> midpoints) {
         this.target = target;
         this.midPoints = midpoints;
         beltData = BeltData.create(this);
+        networkDirty = true;
+        this.markDirty();
         
         if (world instanceof ServerWorld serverWorld)
             serverWorld.getChunkManager().markForUpdate(pos);
@@ -270,7 +326,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     
     public record BeltData(List<Pair<Vec3d, Vec3d>> allPoints, double totalLength, Double[] segmentLengths) {
         
-        public static BeltData create(ChuteBlockEntity entity) {
+        public static @Nullable BeltData create(ChuteBlockEntity entity) {
             
             if (entity.getWorld() == null || entity.target == null || entity.target.equals(BlockPos.ORIGIN))
                 return null;
