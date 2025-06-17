@@ -279,7 +279,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         for (var itemData : renderedItems) {
             var renderedStack = itemData.stack;
             var renderedProgress = itemData.progress;
-            var nextProgress = itemData.progress + 0.03;
+            var delta = 0.3f / beltData.totalLength();
+            var nextProgress = itemData.progress + delta;
             
             var worldPoint = SplineUtil.getPositionOnSpline(beltData, renderedProgress);
             
