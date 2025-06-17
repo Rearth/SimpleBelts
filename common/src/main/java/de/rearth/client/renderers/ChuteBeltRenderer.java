@@ -2,6 +2,7 @@ package de.rearth.client.renderers;
 
 import de.rearth.BlockEntitiesContent;
 import de.rearth.blocks.ChuteBlockEntity;
+import de.rearth.util.MathHelpers;
 import de.rearth.util.SplineUtil;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
@@ -9,11 +10,11 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
+import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
@@ -22,7 +23,6 @@ import net.minecraft.util.math.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
@@ -54,24 +54,15 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
                        .apply(Identifier.of("belts", "block/conveyorbelt"));
         var result = new ArrayList<Quad>();
         
-        // all positions here are in world space
-        var conveyorStartPoint = entity.getPos();
-        var conveyorEndPoint = entity.getTarget();
+        var beltData = entity.getBeltData();
+        if (beltData == null) return null;
+        
+        var segmentSize = 0.75f;
+        var segmentCount = (int) Math.ceil(beltData.totalLength() / segmentSize);
+        var lineWidth = 0.33f;
+        
         var conveyorStartDir = Vec3d.of(entity.getOwnFacing().getVector());
         var conveyorEndDir = Vec3d.of(target.getOwnFacing().getOpposite().getVector());
-        
-        var conveyorMidPointsVisual = entity.getMidPointsWithTangents();
-        var conveyorStartPointVisual = conveyorStartPoint.toCenterPos().add(conveyorStartDir.multiply(-0.5f));
-        var conveyorEndPointVisual = conveyorEndPoint.toCenterPos().add(conveyorEndDir.multiply(0.5f));
-        
-        var transformedMidPoints = conveyorMidPointsVisual.stream().map(elem -> new Pair<>(elem.getLeft().toCenterPos(), Vec3d.of(elem.getRight().getVector()))).toList();
-        var segmentPoints = SplineUtil.getPointPairs(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, transformedMidPoints);
-        var totalDist = SplineUtil.getTotalLength(segmentPoints);
-        
-        // todo move forward in different increments, and adjust segmentSize dynamically based on distance between points?
-        var segmentSize = 0.75f;
-        var segmentCount = (int) Math.ceil(totalDist / segmentSize);
-        var lineWidth = 0.33f;
         
         var beginRight = conveyorStartDir.crossProduct(new Vec3d(0, 1, 0)).normalize();
         
@@ -85,9 +76,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var last = i == segmentCount - 1;
             var progress = i / (float) segmentCount;
             var nextProgress = (i + 1) / (float) segmentCount;
-            var worldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, progress);
+            var worldPoint = SplineUtil.getPositionOnSpline(beltData, progress);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
-            var worldPointNext = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, nextProgress);
+            var worldPointNext = SplineUtil.getPositionOnSpline(beltData, nextProgress);
             var localPointNext = worldPointNext.subtract(entity.getPos().toCenterPos());
             
             var worldPos = BlockPos.ofFloored(worldPoint);
@@ -107,7 +98,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             // split into 2 segments for strong curved segments
             if (curveStrength > 0.025) {
                 var midProgress = (i + 0.5f) / (float) segmentCount;
-                var worldPointMid = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, midProgress);
+                var worldPointMid = SplineUtil.getPositionOnSpline(beltData, midProgress);
                 var localPointMid = worldPointMid.subtract(entity.getPos().toCenterPos());
                 
                 var directionMid = localPointMid.subtract(localPoint);
@@ -209,6 +200,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var targetCandidate = entity.getWorld().getBlockEntity(entity.getTarget(), BlockEntitiesContent.CHUTE_BLOCK.get());
         if (targetCandidate.isEmpty()) return;
         
+        var beltData = entity.getBeltData();
+        if (beltData == null) return;
+        
         matrices.push();
         matrices.translate(0, -2/16f + 0.08f, 0);
         
@@ -273,32 +267,21 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         // render items
         
-        // all positions here are in world space
-        var conveyorStartPoint = entity.getPos();
-        var conveyorEndPoint = entity.getTarget();
-        var conveyorStartDir = Vec3d.of(entity.getOwnFacing().getVector());
-        var conveyorFacing = targetCandidate.get().getOwnFacing();
-        var conveyorEndDir = Vec3d.of(conveyorFacing.getOpposite().getVector());
-        
-        var conveyorMidPointsVisual = entity.getMidPointsWithTangents();
-        var conveyorStartPointVisual = conveyorStartPoint.toCenterPos().add(conveyorStartDir.multiply(-0.5f));
-        var conveyorEndPointVisual = conveyorEndPoint.toCenterPos().add(conveyorEndDir.multiply(0.5f));
-        
-        var transformedMidPoints = conveyorMidPointsVisual.stream().map(elem -> new Pair<>(elem.getLeft().toCenterPos(), Vec3d.of(elem.getRight().getVector()))).toList();
-        var segmentPoints = SplineUtil.getPointPairs(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, transformedMidPoints);
-        var totalDist = SplineUtil.getTotalLength(segmentPoints);
-        
-        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta, (float) (totalDist * 22f), entity);
-        if (renderedItems.isEmpty()) return;
+        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta, (float) (beltData.totalLength() * 22f), entity);
         
         for (var itemData : renderedItems) {
-            var renderedStack = itemData.getRight();
-            var renderedProgress = itemData.getLeft();
-            var nextProgress = itemData.getLeft() + 0.03;
+            var renderedStack = itemData.stack;
+            var renderedProgress = itemData.progress;
+            var nextProgress = itemData.progress + 0.03;
             
-            var worldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, renderedProgress);
-            var nextWorldPoint = SplineUtil.getPositionOnSpline(conveyorStartPointVisual, conveyorStartDir, conveyorEndPointVisual, conveyorEndDir, conveyorMidPointsVisual, nextProgress);
+            var worldPoint = SplineUtil.getPositionOnSpline(beltData, renderedProgress);
+            var nextWorldPoint = SplineUtil.getPositionOnSpline(beltData, nextProgress);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
+            
+            var lastRenderPosition = entity.lastRenderedPositions.getOrDefault(itemData.id, localPoint);
+            var renderPosition = MathHelpers.lerp(lastRenderPosition, localPoint, 0.1f);
+            
+            entity.lastRenderedPositions.put(itemData.id, renderPosition);
             
             var forward = nextWorldPoint.subtract(worldPoint);
             var flatForward = new Vec3d(forward.x, 0, forward.z).normalize();
@@ -314,10 +297,13 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             }
             
             matrices.push();
-            matrices.translate(localPoint.x, localPoint.y, localPoint.z);
+            matrices.translate(renderPosition.x, renderPosition.y, renderPosition.z);
             matrices.translate(0.5f, 0.8f - 3/16f, 0.5f);
             
-            if (!(renderedStack.getItem() instanceof BlockItem)) {
+            var bakedmodel = MinecraftClient.getInstance().getItemRenderer().getModel(renderedStack, entity.getWorld(), null, 0);
+            var useItemTransform = !bakedmodel.getQuads(null, null, entity.getWorld().random).isEmpty();
+            
+            if (useItemTransform) {
                 matrices.translate(0, -2 / 16f, 0);
                 matrices.scale(0.8f, 0.8f, 0.8f);
             }
@@ -349,7 +335,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
     }
     
-    private List<Pair<Float, ItemStack>> getRenderedStacks(float time, float travelDuration, ChuteBlockEntity entity) {
+    private Iterable<ChuteBlockEntity.BeltItem> getRenderedStacks(float time, float travelDuration, ChuteBlockEntity entity) {
         
         return entity.getMovingItems();
         

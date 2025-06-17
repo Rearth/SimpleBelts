@@ -1,5 +1,6 @@
 package de.rearth.util;
 
+import de.rearth.blocks.ChuteBlockEntity;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -10,10 +11,12 @@ import java.util.List;
 
 public class SplineUtil {
     
+    public static Vec3d getPositionOnSpline(ChuteBlockEntity.BeltData data, double t) {
+        return getPositionOnSpline(data.allPoints(), data.totalLength(), data.segmentLengths(), t);
+    }
+    
     // t is in range 0-1
     public static Vec3d getPositionOnSpline(Vec3d start, Vec3d startDir, Vec3d end, Vec3d endDir, List<Pair<BlockPos, Direction>> middlePoints, double t) {
-        
-        t = Math.clamp(t, 0, 1);
         
         var transformedMidPoints = middlePoints.stream().map(elem -> new Pair<>(elem.getLeft().toCenterPos(), Vec3d.of(elem.getRight().getVector()))).toList();
         
@@ -29,41 +32,50 @@ public class SplineUtil {
             totalLength += length;
         }
         
+        return getPositionOnSpline(allPairs, totalLength, segmentLengths, t);
+    }
+    
+    public static Vec3d getPositionOnSpline(List<Pair<Vec3d, Vec3d>> allPoints, double totalLength, Double[] segmentLengths, double t) {
+        t = Math.clamp(t, 0, 1);
+        
         var targetLength = totalLength * t;
         var traversedLength = 0d;
         
         // traverse segments, if traversed dist matches segment, get the final point along it
-        for (int i = 0; i < allPairs.size() - 1; i++) {
+        for (int i = 0; i < allPoints.size() - 1; i++) {
             var segmentLength = segmentLengths[i];
             
             if (targetLength >= traversedLength && targetLength < (traversedLength + segmentLength)) {
-                var from = allPairs.get(i);
-                var to = allPairs.get(i + 1);
+                var from = allPoints.get(i);
+                var to = allPoints.get(i + 1);
                 var offset = targetLength - traversedLength;
                 var delta = offset / segmentLength;
                 
-                return getPointOnHermiteSpline(from.getLeft(), from.getRight().multiply(segmentLength * 1.5f), to.getLeft(), to.getRight().multiply(segmentLength * 1.5F), delta);
+                var mappedT = remapProgress(delta);
+                
+                return getPointOnHermiteSpline(from.getLeft(), from.getRight().multiply(segmentLength * 1.5f), to.getLeft(), to.getRight().multiply(segmentLength * 1.5F), mappedT);
             } else {
                 traversedLength += segmentLength;
             }
             
         }
         
-        return end;
+        return allPoints.getLast().getLeft();
+    }
+    
+    private static double remapProgress(double x) {
+        return 0.4791667*x + 1.5625*(x*x) - 1.041667*(x*x*x);
     }
     
     // approximates segment length by sampling 2 points along the line, and returning the total distance
     public static double getLineLength(Vec3d from, Vec3d fromTangent, Vec3d to, Vec3d toTangent) {
-        
-        if (true)
-            return from.distanceTo(to);
         
         var approxLength = from.distanceTo(to);
         if (fromTangent.squaredDistanceTo(toTangent) < 0.1)
             approxLength += 1;
         
         var midPointA = getPointOnHermiteSpline(from, fromTangent.multiply(approxLength), to, toTangent.multiply(approxLength), 0.33f);
-        var midPointB = getPointOnHermiteSpline(from, fromTangent.multiply(approxLength), to, toTangent.multiply(approxLength), 0.36f);
+        var midPointB = getPointOnHermiteSpline(from, fromTangent.multiply(approxLength), to, toTangent.multiply(approxLength), 0.66f);
         
         
         return from.distanceTo(midPointA) + midPointA.distanceTo(midPointB) + midPointB.distanceTo(to);
