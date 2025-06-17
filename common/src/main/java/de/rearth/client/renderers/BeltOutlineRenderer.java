@@ -4,6 +4,7 @@ import de.rearth.BlockContent;
 import de.rearth.BlockEntitiesContent;
 import de.rearth.ComponentContent;
 import de.rearth.items.BeltItem;
+import de.rearth.util.MathHelpers;
 import de.rearth.util.SplineUtil;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.client.MinecraftClient;
@@ -116,9 +117,35 @@ public class BeltOutlineRenderer {
         matrixStack.translate(-cameraPos.getX(), -cameraPos.getY(), -cameraPos.getZ());
         var linePoints = getPositionsAlongLine(startPos, visualEndPos, startDir, visualEndDir, midPoints);
         
+        var lastForward = Vec3d.of(startDir).normalize();
+        var lastCenter = Vec3d.ZERO;
+        if (!linePoints.isEmpty())
+            lastCenter = linePoints.getFirst();
+        
         for (var center : linePoints) {
             var lineRadius = 0.05f;
-            WorldRenderer.drawBox(matrixStack, consumer.getBuffer(RenderLayer.getLines()), center.x - lineRadius, center.y - lineRadius, center.z - lineRadius, center.x + lineRadius, center.y + lineRadius, center.z + lineRadius, 1f, 1f, 1f, 0.8f);
+            
+            var newForward = center.subtract(lastCenter).normalize();
+            
+            // this only happens for the first one
+            if (center.equals(lastCenter))
+                newForward = lastForward;
+            
+            var curveFactor = newForward.distanceTo(lastForward);
+            var color = new Vec3d(1, 1, 1);
+            
+            if (curveFactor > 0.25f) {
+                color = new Vec3d(1, 0.6f, 0.2f);
+            }
+            
+            if (curveFactor > 0.43f) {
+                color = new Vec3d(1, 0, 0);
+            }
+            
+            lastCenter = center;
+            lastForward = MathHelpers.lerp(lastForward, newForward, 0.3f);
+            
+            WorldRenderer.drawBox(matrixStack, consumer.getBuffer(RenderLayer.getLines()), center.x - lineRadius, center.y - lineRadius, center.z - lineRadius, center.x + lineRadius, center.y + lineRadius, center.z + lineRadius, (float) color.x, (float) color.y, (float) color.z, 0.8f);
         }
         
         matrixStack.pop();
