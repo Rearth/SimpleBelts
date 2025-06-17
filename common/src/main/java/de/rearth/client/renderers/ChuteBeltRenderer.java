@@ -203,6 +203,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var beltData = entity.getBeltData();
         if (beltData == null) return;
         
+        var itemRenderDistSq = 64 * 64;
+        var beltRenderDistSq = 96 * 96;
+        
         matrices.push();
         matrices.translate(0, -2/16f + 0.08f, 0);
         
@@ -210,7 +213,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         var modelMatrix = entry.getPositionMatrix();
         var consumer = vertexConsumers.getBuffer(RenderLayer.getSolid());
         
-        var lightRefreshInterval = 60;
+        var lightRefreshInterval = 82;
         
         var quads = getOrComputeModel(entity, targetCandidate.get());
         if (quads == null) {
@@ -223,6 +226,11 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         for (var quad : quads) {
             
             final var worldPos = quad.worldPos;
+            
+            // abort early is camera is too far away for this segment
+            var camDist = MinecraftClient.getInstance().getCameraEntity().getPos().squaredDistanceTo(Vec3d.of(worldPos));
+            if (camDist > beltRenderDistSq) continue;
+            
             var worldLight = lightmapCache.computeIfAbsent(quad.worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
             if (entity.getWorld().getTime() % lightRefreshInterval == 0) {
                 lightmapCache.put(quad.worldPos.asLong(), WorldRenderer.getLightmapCoordinates(entity.getWorld(), quad.worldPos));
@@ -266,8 +274,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         matrices.pop();
         
         // render items
-        
-        var renderedItems = getRenderedStacks(entity.getWorld().getTime() + tickDelta, (float) (beltData.totalLength() * 22f), entity);
+        var renderedItems = getRenderedStacks(entity);
         
         for (var itemData : renderedItems) {
             var renderedStack = itemData.stack;
@@ -275,11 +282,16 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var nextProgress = itemData.progress + 0.03;
             
             var worldPoint = SplineUtil.getPositionOnSpline(beltData, renderedProgress);
+            
+            // abort early is camera is too far away
+            var camDist = MinecraftClient.getInstance().getCameraEntity().getPos().squaredDistanceTo(worldPoint);
+            if (camDist > itemRenderDistSq) continue;
+            
             var nextWorldPoint = SplineUtil.getPositionOnSpline(beltData, nextProgress);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
             
             var lastRenderPosition = entity.lastRenderedPositions.getOrDefault(itemData.id, localPoint);
-            var renderPosition = MathHelpers.lerp(lastRenderPosition, localPoint, 0.1f);
+            var renderPosition = MathHelpers.lerp(lastRenderPosition, localPoint, 0.03f);
             
             entity.lastRenderedPositions.put(itemData.id, renderPosition);
             
@@ -335,10 +347,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
     }
     
-    private Iterable<ChuteBlockEntity.BeltItem> getRenderedStacks(float time, float travelDuration, ChuteBlockEntity entity) {
-        
+    private Iterable<ChuteBlockEntity.BeltItem> getRenderedStacks(ChuteBlockEntity entity) {
         return entity.getMovingItems();
-        
     }
     
     @Override
@@ -348,7 +358,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     
     @Override
     public int getRenderDistance() {
-        return 128;
+        return 96;
     }
     
     // overrides NF mixin

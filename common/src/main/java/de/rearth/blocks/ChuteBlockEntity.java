@@ -2,7 +2,6 @@ package de.rearth.blocks;
 
 import de.rearth.BlockContent;
 import de.rearth.BlockEntitiesContent;
-import de.rearth.api.ApiLookupCache;
 import de.rearth.api.item.ItemApi;
 import de.rearth.client.renderers.ChuteBeltRenderer;
 import de.rearth.util.SplineUtil;
@@ -45,9 +44,6 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     // this is calculated on both the client and server
     private BeltData beltData;
     
-    private ApiLookupCache<ItemApi.InventoryStorage> sourceCache;
-    private ApiLookupCache<ItemApi.InventoryStorage> targetCache;
-    
     // client only data, used for rendering
     @Environment(EnvType.CLIENT)
     public ChuteBeltRenderer.Quad[] renderedModel;
@@ -68,8 +64,6 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             if (world instanceof ServerWorld serverWorld)
                 serverWorld.getChunkManager().markForUpdate(pos);
         }
-        
-        refreshCaches();
         
         moveItemsOnBelt();
         loadItemsOnBelt();
@@ -103,7 +97,10 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             
             // try to insert last item (if its in queue). Gets put into queue when the end is reached.
             if (inQueue && outputQueue == 1) {
-                var targetInv = targetCache.lookup();
+                var conveyorEndEntityCandidate = world.getBlockEntity(target, BlockEntitiesContent.CHUTE_BLOCK.get());
+                if (conveyorEndEntityCandidate.isEmpty()) continue;
+                var conveyorEndEntity = conveyorEndEntityCandidate.get();
+                var targetInv = ItemApi.BLOCK.find(world, target.add(conveyorEndEntity.getOwnFacing().getOpposite().getVector()), null, null, conveyorEndEntity.getOwnFacing());
                 if (targetInv == null) continue;
                 
                 var insertionStack = pair.stack;
@@ -128,9 +125,9 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         
         if (getPotentialQueueStart() < 0) return;
         
-        if ((world.getTime() + extractionOffset) % extractionInterval == 0 && sourceCache.lookup() != null) {
+        var source = ItemApi.BLOCK.find(world, pos.add(getOwnFacing().getOpposite().getVector()), null, null, getOwnFacing());
+        if ((world.getTime() + extractionOffset) % extractionInterval == 0 && source != null) {
             // try extracting first stack
-            var source = sourceCache.lookup();
             ItemStack extracted = null;
             for (int i = 0; i < source.getSlotCount(); i++) {
                 var stackInSlot = source.getStackInSlot(i).copy();
@@ -156,21 +153,6 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         var queueCount = outputQueue;
         var queueSize = queueCount * squashFactor / beltLength;
         return (float) (1f - queueSize);
-    }
-    
-    @SuppressWarnings({"OptionalIsPresent", "DataFlowIssue"})
-    private void refreshCaches() {
-        if (sourceCache == null) {
-            sourceCache = ApiLookupCache.create(pos.add(getOwnFacing().getOpposite().getVector()), getOwnFacing(), world, ((world1, targetPos, state1, entity, direction) -> ItemApi.BLOCK.find(world1, targetPos, state1, entity, direction)));
-        }
-        
-        if (targetCache == null) {
-            var conveyorEndEntityCandidate = world.getBlockEntity(target, BlockEntitiesContent.CHUTE_BLOCK.get());
-            if (conveyorEndEntityCandidate.isPresent()) {
-                var conveyorEndEntity = conveyorEndEntityCandidate.get();
-                targetCache = ApiLookupCache.create(target.add(conveyorEndEntity.getOwnFacing().getOpposite().getVector()), conveyorEndEntity.getOwnFacing(), world, ((world1, targetPos, state1, entity, direction) -> ItemApi.BLOCK.find(world1, targetPos, state1, entity, direction)));
-            }
-        }
     }
     
     @Override

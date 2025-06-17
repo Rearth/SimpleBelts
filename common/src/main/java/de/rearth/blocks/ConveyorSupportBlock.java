@@ -27,8 +27,8 @@ public class ConveyorSupportBlock extends HorizontalFacingBlock {
     
     private VoxelShape createShapeForDirection(Direction direction) {
         return VoxelShapes.union(
-          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(7 / 16f, 0 / 16f, 7 / 16f, 9 / 16f, 4 / 16f, 9 / 16f), direction, BlockFace.FLOOR),
-          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(2 / 16f, 4 / 16f, 7 / 16f, 14 / 16f, 7 / 16f, 9 / 16f), direction, BlockFace.FLOOR)
+          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(7 / 16f, 0 / 16f, 6 / 16f, 9 / 16f, 4 / 16f, 10 / 16f), direction, BlockFace.FLOOR),
+          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(2 / 16f, 4 / 16f, 6 / 16f, 14 / 16f, 8 / 16f, 10 / 16f), direction, BlockFace.FLOOR)
         ).simplify();
     }
     
