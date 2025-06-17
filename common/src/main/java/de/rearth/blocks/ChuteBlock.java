@@ -1,12 +1,14 @@
 package de.rearth.blocks;
 
 import com.mojang.serialization.MapCodec;
+import de.rearth.BlockEntitiesContent;
 import de.rearth.util.MathHelpers;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
 import net.minecraft.block.entity.BlockEntityType;
 import net.minecraft.block.enums.BlockFace;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.state.StateManager;
 import net.minecraft.state.property.Properties;
@@ -28,8 +30,8 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     
     private VoxelShape createShapeForDirection(Direction direction) {
         return VoxelShapes.union(
-          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(2/16f, 4/16f, 14/16f, 14/16f, 1f, 1f), direction, BlockFace.FLOOR),
-          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(3/16f, 5/16f, 16/16f, 13/16f, 15/16f, 18/16f), direction, BlockFace.FLOOR)
+          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(2 / 16f, 4 / 16f, 14 / 16f, 14 / 16f, 1f, 1f), direction, BlockFace.FLOOR),
+          MathHelpers.rotateVoxelShape(VoxelShapes.cuboid(3 / 16f, 5 / 16f, 16 / 16f, 13 / 16f, 15 / 16f, 18 / 16f), direction, BlockFace.FLOOR)
         ).simplify();
     }
     
@@ -78,5 +80,18 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
             if (blockEntity instanceof ChuteBlockEntity chuteBlockEntity)
                 chuteBlockEntity.tick(world1, pos, state1, chuteBlockEntity);
         });
+    }
+    
+    @Override
+    public BlockState onBreak(World world, BlockPos pos, BlockState state, PlayerEntity player) {
+        
+        if (world.isClient) super.onBreak(world, pos, state, player);
+        
+        var chuteEntity = world.getBlockEntity(pos, BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (chuteEntity.isEmpty()) return super.onBreak(world, pos, state, player);
+        
+        chuteEntity.get().dropContent(world, pos);
+        
+        return super.onBreak(world, pos, state, player);
     }
 }
