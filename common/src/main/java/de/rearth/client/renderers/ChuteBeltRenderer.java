@@ -10,16 +10,16 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
-import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.item.BlockItem;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Pair;
-import net.minecraft.util.math.*;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.RotationAxis;
+import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -81,7 +81,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var worldPointNext = SplineUtil.getPositionOnSpline(beltData, nextProgress);
             var localPointNext = worldPointNext.subtract(entity.getPos().toCenterPos());
             
-            var worldPos = BlockPos.ofFloored(worldPoint);
+            var worldPos = BlockPos.ofFloored(worldPointNext.add(0.5f, 0, 0.5f));
             
             var direction = localPointNext.subtract(localPoint);
             var cross = direction.crossProduct(new Vec3d(0, 1, 0)).normalize();
