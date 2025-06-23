@@ -1,4 +1,4 @@
-# Simple Belts
+# Simple Conveyors
 
 A simple conveyor belt mod for minecraft 1.21.1 fabric and neoforge. Adds a new conveyor belt item, along with conveyor belt support and chute blocks. Works with storages from all
 mods. Items will be moved at about 1 stack per second. Items pile up on the conveyor belt if they can't be inserted into the target anywhere. The belts are spline-based, only the start and
