@@ -23,6 +23,7 @@ import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Optional;
 
 public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> {
     
@@ -34,10 +35,103 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         }
     }
     
-    public record Quad(Vertex a, Vertex b, Vertex c, Vertex d, BlockPos worldPos) {}
+    public record Quad(Vertex a, Vertex b, Vertex c, Vertex d, BlockPos worldPos) {
+    }
+    
+    @Override
+    public void render(ChuteBlockEntity entity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay) {
+        
+        if (entity == null || entity.getWorld() == null) return;
+        
+        if (entity.getTarget() == null || entity.getTarget().getManhattanDistance(entity.getPos()) < 1) return;
+        
+        var targetCandidate = entity.getWorld().getBlockEntity(entity.getTarget(), BlockEntitiesContent.CHUTE_BLOCK.get());
+        if (targetCandidate.isEmpty()) return;
+        
+        var beltData = entity.getBeltData();
+        if (beltData == null) return;
+        
+        var itemRenderDistSq = 64 * 64;
+        var beltRenderDistSq = 96 * 96;
+        
+        renderBeltMesh(entity, matrices, vertexConsumers, overlay, targetCandidate, beltRenderDistSq);
+        
+        // render items
+        renderBeltItems(entity, matrices, vertexConsumers, overlay, beltData, itemRenderDistSq);
+        
+    }
+    
+    private void renderBeltMesh(ChuteBlockEntity entity, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int overlay, Optional<ChuteBlockEntity> targetCandidate, int beltRenderDistSq) {
+        matrices.push();
+        matrices.translate(0, -2 / 16f + 0.08f, 0);
+        
+        var entry = matrices.peek();
+        var modelMatrix = entry.getPositionMatrix();
+        var consumer = vertexConsumers.getBuffer(RenderLayer.getSolid());
+        
+        var lightRefreshInterval = 82;
+        
+        var quads = getOrComputeModel(entity, targetCandidate.get());
+        if (quads == null) {
+            matrices.pop();
+            return;
+        }
+        
+        var lastLight = WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos());
+        
+        for (var quad : quads) {
+            
+            final var worldPos = quad.worldPos;
+            
+            // abort early is camera is too far away for this segment
+            var camDist = MinecraftClient.getInstance().getCameraEntity().getPos().squaredDistanceTo(Vec3d.of(worldPos));
+            if (camDist > beltRenderDistSq) continue;
+            
+            var worldLight = lightmapCache.computeIfAbsent(quad.worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
+            if (entity.getWorld().getTime() % lightRefreshInterval == 0) {
+                lightmapCache.put(quad.worldPos.asLong(), WorldRenderer.getLightmapCoordinates(entity.getWorld(), quad.worldPos));
+            }
+            
+            var renderedVertex = quad.a;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(worldLight)
+              .overlay(overlay);
+            
+            renderedVertex = quad.b;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(worldLight)
+              .overlay(overlay);
+            
+            renderedVertex = quad.c;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(lastLight)
+              .overlay(overlay);
+            
+            renderedVertex = quad.d;
+            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
+              .color(Colors.WHITE)
+              .texture(renderedVertex.u, renderedVertex.v)
+              .normal(entry, 0, 1, 0)
+              .light(lastLight)
+              .overlay(overlay);
+            
+            lastLight = worldLight;
+        }
+        
+        matrices.pop();
+    }
     
     private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
-    
+
 //        if (true) {
 //            return createSplineModel(entity, target);
 //        }
@@ -115,7 +209,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
                 nextRight = localPointNext.add(cross.multiply(lineWidth)).add(0.5f, 0.5f, 0.5f);
                 nextLeft = localPointNext.add(cross.multiply(-lineWidth)).add(0.5f, 0.5f, 0.5f);
                 
-                addSegmentVertices(midRight, lastRight, midLeft, lastLeft, sprite, worldPos, result,0, 0.5f);
+                addSegmentVertices(midRight, lastRight, midLeft, lastLeft, sprite, worldPos, result, 0, 0.5f);
                 addSegmentVertices(nextRight, midRight, nextLeft, midLeft, sprite, worldPos, result, 0.5f, 1f);
             } else {
                 addSegmentVertices(nextRight, lastRight, nextLeft, lastLeft, sprite, worldPos, result, 0, 1);
@@ -130,7 +224,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     }
     
     private static void addSegmentVertices(Vec3d nextRight, Vec3d lastRight, Vec3d nextLeft, Vec3d lastLeft, Sprite sprite, BlockPos worldPos, ArrayList<Quad> result, float vStart, float vEnd) {
-
+        
         var skirtHeight = 0.15f;
         
         // top quad
@@ -149,7 +243,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         // right skirt
         uMin = sprite.getFrameU(0);
-        uMax = sprite.getFrameU(2/16f);
+        uMax = sprite.getFrameU(2 / 16f);
         vMin = sprite.getFrameV(vStart);
         vMax = sprite.getFrameV(vEnd);
         
@@ -163,7 +257,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         // left skirt
         uMin = sprite.getFrameU(0);
-        uMax = sprite.getFrameU(2/16f);
+        uMax = sprite.getFrameU(2 / 16f);
         vMin = sprite.getFrameV(vStart);
         vMax = sprite.getFrameV(vEnd);
         
@@ -190,90 +284,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         result.add(quad);
     }
     
-    @Override
-    public void render(ChuteBlockEntity entity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay) {
-        
-        if (entity == null || entity.getWorld() == null) return;
-        
-        if (entity.getTarget() == null || entity.getTarget().getManhattanDistance(entity.getPos()) < 1) return;
-        
-        var targetCandidate = entity.getWorld().getBlockEntity(entity.getTarget(), BlockEntitiesContent.CHUTE_BLOCK.get());
-        if (targetCandidate.isEmpty()) return;
-        
-        var beltData = entity.getBeltData();
-        if (beltData == null) return;
-        
-        var itemRenderDistSq = 64 * 64;
-        var beltRenderDistSq = 96 * 96;
-        
-        matrices.push();
-        matrices.translate(0, -2/16f + 0.08f, 0);
-        
-        var entry = matrices.peek();
-        var modelMatrix = entry.getPositionMatrix();
-        var consumer = vertexConsumers.getBuffer(RenderLayer.getSolid());
-        
-        var lightRefreshInterval = 82;
-        
-        var quads = getOrComputeModel(entity, targetCandidate.get());
-        if (quads == null) {
-            matrices.pop();
-            return;
-        }
-        
-        var lastLight = WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos());
-        
-        for (var quad : quads) {
-            
-            final var worldPos = quad.worldPos;
-            
-            // abort early is camera is too far away for this segment
-            var camDist = MinecraftClient.getInstance().getCameraEntity().getPos().squaredDistanceTo(Vec3d.of(worldPos));
-            if (camDist > beltRenderDistSq) continue;
-            
-            var worldLight = lightmapCache.computeIfAbsent(quad.worldPos.asLong(), pos -> WorldRenderer.getLightmapCoordinates(entity.getWorld(), worldPos));
-            if (entity.getWorld().getTime() % lightRefreshInterval == 0) {
-                lightmapCache.put(quad.worldPos.asLong(), WorldRenderer.getLightmapCoordinates(entity.getWorld(), quad.worldPos));
-            }
-            
-            var renderedVertex = quad.a;
-            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
-              .color(Colors.WHITE)
-              .texture(renderedVertex.u, renderedVertex.v)
-              .normal(entry, 0, 1, 0)
-              .light(worldLight)
-              .overlay(overlay);
-            
-            renderedVertex = quad.b;
-            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
-              .color(Colors.WHITE)
-              .texture(renderedVertex.u, renderedVertex.v)
-              .normal(entry, 0, 1, 0)
-              .light(worldLight)
-              .overlay(overlay);
-            
-            renderedVertex = quad.c;
-            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
-              .color(Colors.WHITE)
-              .texture(renderedVertex.u, renderedVertex.v)
-              .normal(entry, 0, 1, 0)
-              .light(lastLight)
-              .overlay(overlay);
-            
-            renderedVertex = quad.d;
-            consumer.vertex(modelMatrix, renderedVertex.x, renderedVertex.y, renderedVertex.z)
-              .color(Colors.WHITE)
-              .texture(renderedVertex.u, renderedVertex.v)
-              .normal(entry, 0, 1, 0)
-              .light(lastLight)
-              .overlay(overlay);
-            
-            lastLight = worldLight;
-        }
-        
-        matrices.pop();
-        
-        // render items
+    private void renderBeltItems(ChuteBlockEntity entity, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int overlay, ChuteBlockEntity.BeltData beltData, int itemRenderDistSq) {
         var renderedItems = getRenderedStacks(entity);
         
         for (var itemData : renderedItems) {
@@ -283,10 +294,19 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var nextProgress = itemData.progress + delta;
             
             var worldPoint = SplineUtil.getPositionOnSpline(beltData, renderedProgress);
+            var cam = MinecraftClient.getInstance().getCameraEntity();
             
             // abort early is camera is too far away
-            var camDist = MinecraftClient.getInstance().getCameraEntity().getPos().squaredDistanceTo(worldPoint);
+            var camDist = cam.getPos().squaredDistanceTo(worldPoint);
             if (camDist > itemRenderDistSq) continue;
+            
+            // abort if item is behind player (very basic frustum culling)
+            var camLookDir = cam.getRotationVector();
+            var itemOffset = worldPoint.subtract(cam.getPos());
+            // negative dot product means the item is behind
+            if (camLookDir.dotProduct(itemOffset.normalize()) < 0)
+                continue;
+            
             
             var nextWorldPoint = SplineUtil.getPositionOnSpline(beltData, nextProgress);
             var localPoint = worldPoint.subtract(entity.getPos().toCenterPos());
@@ -311,7 +331,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             
             matrices.push();
             matrices.translate(renderPosition.x, renderPosition.y, renderPosition.z);
-            matrices.translate(0.5f, 0.8f - 3/16f, 0.5f);
+            matrices.translate(0.5f, 0.8f - 3 / 16f, 0.5f);
             
             var bakedmodel = MinecraftClient.getInstance().getItemRenderer().getModel(renderedStack, entity.getWorld(), null, 0);
             var useItemTransform = !bakedmodel.getQuads(null, null, entity.getWorld().random).isEmpty();
@@ -346,10 +366,26 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             matrices.pop();
         }
         
+        if (entity.getWorld().getTime() % 104 == 0)
+            cleanPositionsCache(entity);
     }
     
     private Iterable<ChuteBlockEntity.BeltItem> getRenderedStacks(ChuteBlockEntity entity) {
         return entity.getMovingItems();
+    }
+    
+    // remove unused cache indices to avoid memory leaks
+    private void cleanPositionsCache(ChuteBlockEntity entity) {
+        var active = getRenderedStacks(entity);
+        var cache = entity.lastRenderedPositions;
+        var usedData = new HashMap<Short, Vec3d>();
+        for (var movedItem : active) {
+            var lastEntry = cache.getOrDefault(movedItem.id, Vec3d.ZERO);
+            usedData.put(movedItem.id, lastEntry);
+        }
+        
+        cache.clear();
+        cache.putAll(usedData);
     }
     
     @Override
