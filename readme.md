@@ -1,25 +1,44 @@
-# Simple Conveyors
+![Belt connecting chest and furnace](https://cdn.modrinth.com/data/cached_images/ac7f13962088c002ca8a82cfdfb644f8cdd0dc89.png)
 
-![preview](https://github.com/user-attachments/assets/63bd1ed4-2c53-47b2-b484-10a0b4b8d5c5)
+This mod adds clean, flexible conveyor belts for Minecraft 1.21.1, compatible with **both Fabric and NeoForge**. It’s designed to work seamlessly with **any item storage mod**. The mod is still in **beta**, please report any issues you find.
 
+### 🚚 Features:
 
-A simple conveyor belt mod for minecraft 1.21.1 fabric and neoforge. Adds a new conveyor belt item, along with conveyor belt support and chute blocks. Works with storages from all
-mods. Items will be moved at about 1 stack per second. Items pile up on the conveyor belt if they can't be inserted into the target anywhere. The belts are spline-based, only the start and
-end of a belt is block-based. This means that the belts can be of any shape.
+*   Adds a new **Conveyor Belt** item, plus optional **Support** and **Chute** blocks.
+*   **Fully dynamic spline-based belts**: Only the start and end need to be placed on blocks. Everything in-between can curve, bend, and twist freely.
+*   **Item transfer speed**: ~1 stack per second.
+*   **Smart overflow handling**: If the destination is full, items visibly pile up on the belt.
+*   **Shader-compatible**: Works with iris and oculus shaders.
 
-## How to use:
+***
 
-* (Optional:)
-* * Place conveyor chute at the start and end positions. These will also be automatically placed when using the belt items.
-* * Place any number of conveyor support blocks to further specify the belt path.
-* Use the belt item on the starting inventory block.
-* Then walk to the desired target, and use the belt item there.
+## 🛠️ How to Use
 
-## Dependencies
+1.  _(Optional)_ Place **Chute blocks** where the belt will start and end. These can also be auto-placed when using the belt item.
+2.  _(Optional)_ Add **Support blocks** anywhere along the path to shape the belt's curve.
+3.  Right-click the **belt item** on a starting inventory (e.g., a chest).
+4.  Walk to the destination inventory and right-click it to finish the belt.
 
-* Architectury API
-* (Fabric Only) Fabric API
+The belt path will auto-connect between the two points!
+
+***
+
+## 🔗 Dependencies
+
+*   [Architectury API](https://modrinth.com/mod/architectury)
+*   (Fabric Only) [Fabric API](https://modrinth.com/mod/fabric-api)
+
+***
+
+## 🔍 Planned Features
+
+*   Belt entity collisions / hitboxes
+*   Entity movement
+*   Splitters and mergers (with filters)
+*   A backport to 1.20.1 or other versions is **NOT** planned.
+
+***
 
 ## Credits
 
-* [Belt block and item texture is a modified version from malcolriley's unused-textures repo](https://github.com/matiassingers/awesome-readme)
+*   Conveyor textures are based on modified assets from [malcolriley’s unused-textures repo](https://github.com/matiassingers/awesome-readme).
