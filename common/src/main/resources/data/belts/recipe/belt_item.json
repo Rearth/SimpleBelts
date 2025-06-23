@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "c": {
+      "item": "minecraft:dried_kelp"
+    },
+    "i": {
+      "item": "minecraft:stick"
+    }
+  },
+  "pattern": [
+    "   ",
+    "cic",
+    "   "
+  ],
+  "result": {
+    "count": 8,
+    "id": "belts:belt"
+  }
+}

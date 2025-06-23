@@ -2,6 +2,7 @@ package de.rearth.blocks;
 
 import de.rearth.BlockContent;
 import de.rearth.BlockEntitiesContent;
+import de.rearth.ItemContent;
 import de.rearth.api.item.ItemApi;
 import de.rearth.client.renderers.ChuteBeltRenderer;
 import de.rearth.util.SplineUtil;
@@ -99,6 +100,13 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     public void dropContent(World world, BlockPos pos) {
         for (var beltItem : movingItems) {
             var stack = beltItem.stack;
+            var spawnAt = pos.toCenterPos();
+            world.spawnEntity(new ItemEntity(world, spawnAt.x, spawnAt.y, spawnAt.z, stack));
+        }
+        
+        if (!movingItems.isEmpty() || (target != null && !target.equals(BlockPos.ORIGIN))) {
+            // pretend to drop an actual belt
+            var stack = new ItemStack(ItemContent.BELT.get(), 1);
             var spawnAt = pos.toCenterPos();
             world.spawnEntity(new ItemEntity(world, spawnAt.x, spawnAt.y, spawnAt.z, stack));
         }

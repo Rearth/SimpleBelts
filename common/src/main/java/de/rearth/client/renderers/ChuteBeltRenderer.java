@@ -304,7 +304,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
             var camLookDir = cam.getRotationVector();
             var itemOffset = worldPoint.subtract(cam.getPos());
             // negative dot product means the item is behind
-            if (camLookDir.dotProduct(itemOffset.normalize()) < 0)
+            if (camDist > 1f && camLookDir.dotProduct(itemOffset.normalize()) < 0)
                 continue;
             
             

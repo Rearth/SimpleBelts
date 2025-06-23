@@ -149,6 +149,9 @@ public class BeltItem extends Item {
         stack.remove(ComponentContent.BELT_START.get());
         stack.remove(ComponentContent.BELT_DIR.get());
         
+        if (!player.isCreative())
+            stack.decrement(1);
+        
         player.sendMessage(Text.translatable("message.belts.belt_created"));
         
         var distStart = start.getSquaredDistance(player.getPos());
@@ -173,7 +176,7 @@ public class BeltItem extends Item {
         }
         
         // create belt in block entity
-        if (startCandidate.isPresent() &&  endCandidate.isPresent()) {
+        if (startCandidate.isPresent() && endCandidate.isPresent()) {
             var startEntity = startCandidate.get();
             startEntity.assignFromBeltItem(end, supports);
         }
