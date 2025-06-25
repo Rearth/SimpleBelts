@@ -187,6 +187,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             for (int i = 0; i < source.getSlotCount(); i++) {
                 var stackInSlot = source.getStackInSlot(i).copy();
                 if (stackInSlot.isEmpty()) continue;
+                stackInSlot.setCount(Math.min(stackInSlot.getCount(), 64));
                 var extractedAmount = source.extract(stackInSlot, false);
                 if (extractedAmount > 0) {
                     extracted = stackInSlot.copyWithCount(extractedAmount);
