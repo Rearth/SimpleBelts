@@ -59,3 +59,35 @@ shadowJar {
 remapJar {
     inputFile.set shadowJar.archiveFile
 }
+
+publishMods {
+    file = remapJar.archiveFile
+    changelog = file("../CHANGELOG.md").getText()
+    type = BETA
+    modLoaders.add("fabric")
+
+    modrinth {
+        accessToken = providers.environmentVariable("MODRINTH_API_KEY")
+        projectId = "kNthsBTM"
+        minecraftVersions.add("1.21.1")
+
+        requires("architectury-api")
+
+        announcementTitle = "Fabric Version on Modrinth"
+    }
+
+    curseforge {
+        accessToken = providers.environmentVariable("CURSEFORGE_API_KEY")
+        projectId = "1292980"
+        projectSlug = "simple-conveyor-belts"
+        minecraftVersions.add("1.21.1")
+
+        requires("architectury-api")
+
+        javaVersions.add(JavaVersion.VERSION_21)
+        clientRequired = true
+        serverRequired = true
+
+        announcementTitle = "Fabric Version on CurseForge"
+    }
+}
