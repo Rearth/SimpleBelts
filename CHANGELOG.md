@@ -1,0 +1,3 @@
+- Fix belt trying to load stack larger than 64 items and then crashing
+- Rename packages
+- Fix credits link
