@@ -41,4 +41,4 @@ The belt path will auto-connect between the two points!
 
 ## Credits
 
-*   Conveyor textures are based on modified assets from [malcolriley’s unused-textures repo](https://github.com/matiassingers/awesome-readme).
+*   Conveyor textures are based on modified assets from [malcolriley’s unused-textures repo](https://github.com/malcolmriley/unused-textures).
