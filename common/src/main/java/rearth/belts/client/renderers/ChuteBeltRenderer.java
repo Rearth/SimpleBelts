@@ -131,9 +131,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     
     private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
 
-//        if (true) {
-//            return createSplineModel(entity, target);
-//        }
+        if (true) {
+            return createSplineModel(entity, target);
+        }
         
         if (entity.renderedModel == null)
             entity.renderedModel = createSplineModel(entity, target);
@@ -289,7 +289,7 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         for (var itemData : renderedItems) {
             var renderedStack = itemData.stack;
             var renderedProgress = itemData.progress;
-            var delta = 0.3f / beltData.totalLength();
+            var delta = 0.05f / beltData.totalLength();
             var nextProgress = itemData.progress + delta;
             
             var worldPoint = SplineUtil.getPositionOnSpline(beltData, renderedProgress);
