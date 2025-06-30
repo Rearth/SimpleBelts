@@ -9,6 +9,7 @@ This mod adds clean, flexible conveyor belts for Minecraft 1.21.1, compatible wi
 *   **Item transfer speed**: ~1 stack per second.
 *   **Smart overflow handling**: If the destination is full, items visibly pile up on the belt.
 *   **Shader-compatible**: Works with iris and oculus shaders.
+*   **Easy filtering**: Click a conveyor chute with an item to set it as filter. Also works with the Smart Filters from the FTB Filters mod.
 
 ***
 
@@ -34,7 +35,6 @@ The belt path will auto-connect between the two points!
 
 *   Belt entity collisions / hitboxes
 *   Entity movement
-*   Splitters and mergers (with filters)
 *   A backport to 1.20.1 or other versions is **NOT** planned.
 
 ***

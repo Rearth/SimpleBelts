@@ -1,9 +1,5 @@
 package rearth.belts.client.renderers;
 
-import rearth.belts.BlockEntitiesContent;
-import rearth.belts.blocks.ChuteBlockEntity;
-import rearth.belts.util.MathHelpers;
-import rearth.belts.util.SplineUtil;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
@@ -16,10 +12,11 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.*;
+import rearth.belts.BlockEntitiesContent;
+import rearth.belts.blocks.ChuteBlockEntity;
+import rearth.belts.util.MathHelpers;
+import rearth.belts.util.SplineUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,6 +55,8 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         // render items
         renderBeltItems(entity, matrices, vertexConsumers, overlay, beltData, itemRenderDistSq);
+        
+        renderBeltFilter(entity, matrices, vertexConsumers, light, overlay, beltRenderDistSq);
         
     }
     
@@ -368,6 +367,53 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
         
         if (entity.getWorld().getTime() % 104 == 0)
             cleanPositionsCache(entity);
+    }
+    
+    
+    private void renderBeltFilter(ChuteBlockEntity entity, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay, int itemRenderDistSq) {
+        var renderedStack = entity.filteredItem;
+        if (renderedStack.isEmpty()) return;
+        
+        var worldPoint = entity.getPos().toCenterPos();
+        var cam = MinecraftClient.getInstance().getCameraEntity();
+        
+        // abort early is camera is too far away
+        var camDist = cam.getPos().squaredDistanceTo(worldPoint);
+        if (camDist > itemRenderDistSq) return;
+        
+        // abort if item is behind player (very basic frustum culling)
+        var camLookDir = cam.getRotationVector();
+        var itemOffset = worldPoint.subtract(cam.getPos());
+        // negative dot product means the item is behind
+        if (camDist > 5f && camLookDir.dotProduct(itemOffset.normalize()) < 0)
+            return;
+        
+        var ownFacing = entity.getOwnFacing();
+        
+        var forwardDir = Vec3d.of(ownFacing.getVector());
+        var renderOffset = forwardDir.multiply(-0.43f);
+        
+        matrices.push();
+        matrices.translate(0.5f, 0.7f, 0.5f);
+        matrices.translate(renderOffset.x, renderOffset.y, renderOffset.z);
+        
+        if (ownFacing.getAxis().equals(Direction.Axis.X))
+            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
+        
+        matrices.scale(0.4f, 0.4f, 0.4f);
+        
+        MinecraftClient.getInstance().getItemRenderer().renderItem(
+          renderedStack,
+          ModelTransformationMode.FIXED,
+          light,
+          overlay,
+          matrices,
+          vertexConsumers,
+          entity.getWorld(),
+          0
+        );
+        
+        matrices.pop();
     }
     
     private Iterable<ChuteBlockEntity.BeltItem> getRenderedStacks(ChuteBlockEntity entity) {

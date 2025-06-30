@@ -41,6 +41,9 @@ dependencies {
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 
     modRuntimeOnly "dev.emi:emi-fabric:1.1.22+1.21.1";
+
+    modImplementation "curse.maven:ftb-filter-system-943925:6259287"
+    modImplementation "curse.maven:ftb-library-fabric-438495:6711325"
 }
 
 processResources {

@@ -1,16 +1,13 @@
 package rearth.belts.blocks;
 
-import rearth.belts.BlockContent;
-import rearth.belts.BlockEntitiesContent;
-import rearth.belts.ItemContent;
-import rearth.belts.api.item.ItemApi;
-import rearth.belts.client.renderers.ChuteBeltRenderer;
-import rearth.belts.util.SplineUtil;
+import dev.architectury.platform.Platform;
+import dev.ftb.mods.ftbfiltersystem.api.FTBFilterSystemAPI;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityTicker;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -20,12 +17,19 @@ import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
+import rearth.belts.BlockContent;
+import rearth.belts.BlockEntitiesContent;
+import rearth.belts.ItemContent;
+import rearth.belts.api.item.ItemApi;
+import rearth.belts.client.renderers.ChuteBeltRenderer;
+import rearth.belts.util.SplineUtil;
 
 import java.util.*;
 
@@ -46,6 +50,9 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     
     // used to check if a belt is used as target. Periodically updated on belt ends from the belt starts.
     private long lastTargetedTime;
+    
+    // used for filtering. Optionally works with create and ftb filters.
+    public ItemStack filteredItem = ItemStack.EMPTY;
     
     // client only data, used for rendering
     public ChuteBeltRenderer.Quad[] renderedModel;
@@ -187,6 +194,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             for (int i = 0; i < source.getSlotCount(); i++) {
                 var stackInSlot = source.getStackInSlot(i).copy();
                 if (stackInSlot.isEmpty()) continue;
+                if (!stackMatchesFilter(stackInSlot)) continue;
                 stackInSlot.setCount(Math.min(stackInSlot.getCount(), 64));
                 var extractedAmount = source.extract(stackInSlot, false);
                 if (extractedAmount > 0) {
@@ -202,6 +210,18 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
                 networkDirty = true;
             }
         }
+    }
+    
+    private boolean stackMatchesFilter(ItemStack stack) {
+        if (filteredItem.isEmpty()) return true;
+        
+        if (Platform.isModLoaded("ftbfiltersystem")) {
+            var filterAPI = FTBFilterSystemAPI.api();
+            if (filterAPI.isFilterItem(filteredItem))
+                return filterAPI.doesFilterMatch(filteredItem, stack);
+        }
+        
+        return stack.getItem().equals(filteredItem.getItem());
     }
     
     private float getPotentialQueueStart() {
@@ -223,6 +243,8 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             nbt.putLongArray("midpoints", midpointsArray);
         }
         
+        nbt.put("filter", filteredItem.encodeAllowEmpty(registryLookup));
+        
         var positionsList = new NbtList();
         positionsList.addAll(movingItems.stream().map(pair -> {
             var compound = new NbtCompound();
@@ -243,6 +265,8 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         
         var midPointsList = nbt.getLongArray("midpoints");
         midPoints = Arrays.stream(midPointsList).mapToObj(BlockPos::fromLong).toList();
+        
+        filteredItem = ItemStack.fromNbtOrEmpty(registryLookup, nbt.getCompound("filter"));
         
         var positions = nbt.getList("moving", NbtElement.COMPOUND_TYPE);
         movingItems.clear();
@@ -314,6 +338,30 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
                  .filter(point -> world.getBlockState(point).getBlock().equals(BlockContent.CONVEYOR_SUPPORT_BLOCK.get()))
                  .map(point -> new Pair<>(point, world.getBlockState(point).get(HorizontalFacingBlock.FACING)))
                  .toList();
+    }
+    
+    public void assignFilterItem(ItemStack stack, PlayerEntity player) {
+        
+        if (stack.isEmpty()) {
+            resetFilterItem(player);
+            return;
+        }
+        
+        player.sendMessage(Text.translatable("message.belts.filter_set"));
+        filteredItem = stack.copy();
+        this.markDirty();
+        
+        if (world instanceof ServerWorld serverWorld)
+            serverWorld.getChunkManager().markForUpdate(pos);
+    }
+    
+    public void resetFilterItem(PlayerEntity player) {
+        player.sendMessage(Text.translatable("message.belts.filter_reset"));
+        filteredItem = ItemStack.EMPTY;
+        this.markDirty();
+        
+        if (world instanceof ServerWorld serverWorld)
+            serverWorld.getChunkManager().markForUpdate(pos);
     }
     
     public static class BeltItem {

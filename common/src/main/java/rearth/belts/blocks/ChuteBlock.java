@@ -1,6 +1,19 @@
 package rearth.belts.blocks;
 
 import com.mojang.serialization.MapCodec;
+import dev.architectury.platform.Platform;
+import dev.ftb.mods.ftbfiltersystem.api.client.FTBFilterSystemClientAPI;
+import dev.ftb.mods.ftbfiltersystem.client.FTBFilterSystemClient;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.tooltip.TooltipType;
+import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.Hand;
+import net.minecraft.util.ItemActionResult;
+import net.minecraft.util.hit.BlockHitResult;
 import rearth.belts.BlockEntitiesContent;
 import rearth.belts.util.MathHelpers;
 import net.minecraft.block.*;
@@ -21,6 +34,7 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -38,6 +52,28 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     public ChuteBlock(Settings settings) {
         super(settings);
         setDefaultState(getDefaultState().with(Properties.HORIZONTAL_FACING, Direction.NORTH));
+    }
+    
+    @Override
+    protected ItemActionResult onUseWithItem(ItemStack stack, BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
+        
+        if (world.isClient) return ItemActionResult.SUCCESS;
+        
+        var candidate = world.getBlockEntity(pos, BlockEntitiesContent.CHUTE_BLOCK.get());
+        candidate.ifPresent(chuteEntity -> chuteEntity.assignFilterItem(stack, player));
+        
+        return ItemActionResult.SUCCESS;
+    }
+    
+    @Override
+    protected ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
+        
+        if (world.isClient) return ActionResult.SUCCESS;
+        
+        var candidate = world.getBlockEntity(pos, BlockEntitiesContent.CHUTE_BLOCK.get());
+        candidate.ifPresent(chuteEntity -> chuteEntity.resetFilterItem(player));
+        
+        return ActionResult.SUCCESS;
     }
     
     @Override
@@ -93,5 +129,18 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
         chuteEntity.get().dropContent(world, pos);
         
         return super.onBreak(world, pos, state, player);
+    }
+    
+    @Override
+    public void appendTooltip(ItemStack stack, Item.TooltipContext context, List<Text> tooltip, TooltipType options) {
+        
+        var showExtra = Screen.hasControlDown();
+        if (showExtra) {
+            tooltip.add(Text.translatable("block.belts.chute.tooltip.1").formatted(Formatting.GRAY));
+            if (Platform.isModLoaded("ftbfiltersystem"))
+                tooltip.add(Text.translatable("block.belts.chute.tooltip.ftbfilters").formatted(Formatting.GRAY));
+        }
+        
+        super.appendTooltip(stack, context, tooltip, options);
     }
 }

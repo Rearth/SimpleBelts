@@ -199,7 +199,7 @@ public class BeltItem extends Item {
         
         var showExtra = Screen.hasControlDown();
         if (showExtra) {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 4; i++) {
                 tooltip.add(Text.translatable("item.belts.belt.tooltip." + i).formatted(Formatting.GRAY));
             }
         } else {
