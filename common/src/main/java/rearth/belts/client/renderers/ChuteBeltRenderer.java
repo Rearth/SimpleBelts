@@ -131,9 +131,9 @@ public class ChuteBeltRenderer implements BlockEntityRenderer<ChuteBlockEntity> 
     
     private Quad[] getOrComputeModel(ChuteBlockEntity entity, ChuteBlockEntity target) {
 
-        if (true) {
-            return createSplineModel(entity, target);
-        }
+//        if (true) {
+//            return createSplineModel(entity, target);
+//        }
         
         if (entity.renderedModel == null)
             entity.renderedModel = createSplineModel(entity, target);
