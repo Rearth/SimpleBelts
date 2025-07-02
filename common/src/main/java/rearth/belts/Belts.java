@@ -9,9 +9,6 @@ public final class Belts {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     public static void init() {
-        
-        NetworkContent.init();
-        
         BlockContent.BLOCKS.register();
         ItemContent.ITEMS.register();
         BlockEntitiesContent.TYPES.register();
