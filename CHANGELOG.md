@@ -1,2 +1,3 @@
-- Add item filtering to extracting conveyor belt chutes (simple click an item to filter. Works with smart filters from FTB Filters if installed).
-- Improve item rotations when moving along corners.
+- Fix belt item (and contents) not always being dropped
+- Fix belts not properly disconnecting when broken
+- Add chute item consumption on placement
