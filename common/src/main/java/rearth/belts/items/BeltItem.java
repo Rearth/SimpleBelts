@@ -17,6 +17,7 @@ import net.minecraft.util.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
+import rearth.belts.ItemContent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -154,6 +155,8 @@ public class BeltItem extends Item {
         
         player.sendMessage(Text.translatable("message.belts.belt_created"));
         
+        var createdChutes = 0;
+        
         var distStart = start.getSquaredDistance(player.getPos());
         var distEnd = end.getSquaredDistance(player.getPos());
         var playfrom = distStart < distEnd ? start : end;
@@ -165,6 +168,7 @@ public class BeltItem extends Item {
         if (startCandidate.isEmpty() && (startState.isReplaceable() || startState.isAir())) {
             world.setBlockState(start, BlockContent.CHUTE_BLOCK.get().getDefaultState().with(HorizontalFacingBlock.FACING, startDir));
             startCandidate = world.getBlockEntity(start, BlockEntitiesContent.CHUTE_BLOCK.get());
+            createdChutes++;
         }
         
         // optionally create end entity
@@ -173,12 +177,30 @@ public class BeltItem extends Item {
         if (endCandidate.isEmpty() && (endState.isReplaceable() || endState.isAir())) {
             world.setBlockState(end, BlockContent.CHUTE_BLOCK.get().getDefaultState().with(HorizontalFacingBlock.FACING, endDir));
             endCandidate = world.getBlockEntity(end, BlockEntitiesContent.CHUTE_BLOCK.get());
+            createdChutes++;
         }
         
         // create belt in block entity
         if (startCandidate.isPresent() && endCandidate.isPresent()) {
             var startEntity = startCandidate.get();
             startEntity.assignFromBeltItem(end, supports);
+        }
+        
+        // optionally consume chutes in inventory
+        if (createdChutes > 0) {
+            var taken = 0;
+            for (var playerItem : player.getInventory().main) {
+                if (playerItem.isOf(ItemContent.CHUTE.get())) {
+                    
+                    var count = playerItem.getCount();
+                    var removed = Math.min(count, createdChutes);
+                    
+                    playerItem.decrement(removed);
+                    
+                    taken += removed;
+                    if (taken >= createdChutes) break;
+                }
+            }
         }
     }
     

@@ -95,7 +95,7 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     @Nullable
     @Override
     public BlockState getPlacementState(ItemPlacementContext ctx) {
-        return Objects.requireNonNull(super.getPlacementState(ctx)).with(Properties.HORIZONTAL_FACING, ctx.getHorizontalPlayerFacing().getOpposite());
+        return Objects.requireNonNull(super.getPlacementState(ctx)).with(Properties.HORIZONTAL_FACING, ctx.getSide());
     }
     
     @Override
@@ -126,7 +126,7 @@ public class ChuteBlock extends HorizontalFacingBlock implements BlockEntityProv
     @Override
     public BlockState onBreak(World world, BlockPos pos, BlockState state, PlayerEntity player) {
         
-        if (world.isClient) super.onBreak(world, pos, state, player);
+        if (world.isClient) return super.onBreak(world, pos, state, player);
         
         var chuteEntity = world.getBlockEntity(pos, BlockEntitiesContent.CHUTE_BLOCK.get());
         if (chuteEntity.isEmpty()) return super.onBreak(world, pos, state, player);

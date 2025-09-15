@@ -50,6 +50,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     
     // used to check if a belt is used as target. Periodically updated on belt ends from the belt starts.
     private long lastTargetedTime;
+    private BlockPos sourceBeltPos = BlockPos.ORIGIN;
     
     // used for filtering. Optionally works with create and ftb filters.
     public ItemStack filteredItem = ItemStack.EMPTY;
@@ -105,6 +106,20 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
     }
     
     public void dropContent(World world, BlockPos pos) {
+        
+        // notify source to be reset
+        if (world.getTime() - this.lastTargetedTime < 20 && !this.sourceBeltPos.equals(BlockPos.ORIGIN) && world instanceof ServerWorld serverWorld) {
+            var sourceEntityCandidate = world.getBlockEntity(this.sourceBeltPos, BlockEntitiesContent.CHUTE_BLOCK.get());
+            if (sourceEntityCandidate.isPresent()) {
+                var source = sourceEntityCandidate.get();
+                source.dropContent(world, pos);
+                source.target = null;
+                serverWorld.getChunkManager().markForUpdate(this.sourceBeltPos);
+                source.networkDirty = true;
+                source.markDirty();
+            }
+        }
+        
         for (var beltItem : movingItems) {
             var stack = beltItem.stack;
             var spawnAt = pos.toCenterPos();
@@ -121,10 +136,12 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         movingItems.clear();
     }
     
+    // notifies the belt end entity that the current entity is the sender to it
     private void assignTargetState(World world) {
         var beltTargetCandidate = world.getBlockEntity(target, BlockEntitiesContent.CHUTE_BLOCK.get());
         if (beltTargetCandidate.isPresent()) {
             beltTargetCandidate.get().lastTargetedTime = world.getTime();
+            beltTargetCandidate.get().sourceBeltPos = pos;
         } else {
             target = null;
             midPoints = new ArrayList<>();
@@ -192,13 +209,13 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
             // try extracting first stack
             ItemStack extracted = null;
             for (int i = 0; i < source.getSlotCount(); i++) {
-                var stackInSlot = source.getStackInSlot(i).copy();
-                if (stackInSlot.isEmpty()) continue;
-                if (!stackMatchesFilter(stackInSlot)) continue;
-                stackInSlot.setCount(Math.min(stackInSlot.getCount(), 64));
-                var extractedAmount = source.extract(stackInSlot, false);
+                var extractingStack = source.getStackInSlot(i).copy();
+                if (extractingStack.isEmpty()) continue;
+                if (!stackMatchesFilter(extractingStack)) continue;
+                extractingStack.setCount(Math.min(extractingStack.getCount(), 64));
+                var extractedAmount = source.extract(extractingStack, false);
                 if (extractedAmount > 0) {
-                    extracted = stackInSlot.copyWithCount(extractedAmount);
+                    extracted = extractingStack.copyWithCount(extractedAmount);
                     break;
                 }
             }

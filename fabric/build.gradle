@@ -28,6 +28,23 @@ configurations {
     }
 }
 
+repositories {
+    maven {
+        name = 'Owo'
+        url 'https://maven.wispforest.io/releases/'
+    }
+
+    maven {
+        name = 'GeckoLib'
+        url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+    }
+
+    maven { // for athena/CSL
+        name = 'teamresourceful'
+        url "https://maven.teamresourceful.com/repository/maven-public/"
+    }
+}
+
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
 
@@ -44,6 +61,12 @@ dependencies {
 
     modImplementation "curse.maven:ftb-filter-system-943925:6259287"
     modImplementation "curse.maven:ftb-library-fabric-438495:6711325"
+
+    modRuntimeOnly "curse.maven:oritech-1030830:6807349"
+    modRuntimeOnly "teamreborn:energy:4.1.0"
+    modRuntimeOnly "io.wispforest:owo-lib:0.12.15.4+1.21"
+    modRuntimeOnly "software.bernie.geckolib:geckolib-fabric-1.21.1:4.6.6"
+    modRuntimeOnly "earth.terrarium.athena:athena-fabric-1.21:4.0.0"
 }
 
 processResources {
