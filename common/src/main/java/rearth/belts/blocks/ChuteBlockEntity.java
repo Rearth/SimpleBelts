@@ -110,7 +110,7 @@ public class ChuteBlockEntity extends BlockEntity implements BlockEntityTicker<C
         // notify source to be reset
         if (world.getTime() - this.lastTargetedTime < 20 && !this.sourceBeltPos.equals(BlockPos.ORIGIN) && world instanceof ServerWorld serverWorld) {
             var sourceEntityCandidate = world.getBlockEntity(this.sourceBeltPos, BlockEntitiesContent.CHUTE_BLOCK.get());
-            if (sourceEntityCandidate.isPresent()) {
+            if (sourceEntityCandidate.isPresent() && sourceEntityCandidate.get() != this) {
                 var source = sourceEntityCandidate.get();
                 source.dropContent(world, pos);
                 source.target = null;
