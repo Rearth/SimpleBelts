@@ -1,3 +1,2 @@
-- Fix belt item (and contents) not always being dropped
-- Fix belts not properly disconnecting when broken
-- Add chute item consumption on placement
+- Fix crash when placing conveyor chute block on floors
+- Fix potential crash when invalid conveyors are destroyed
